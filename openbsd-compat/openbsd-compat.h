@@ -70,8 +70,16 @@ void *reallocarray(void *, size_t, size_t);
 #endif
 
 #if !defined(HAVE_REALPATH) || defined(BROKEN_REALPATH)
+/*
+ * glibc's FORTIFY_SOURCE can redefine this and prevent us picking up the
+ * compat version.
+ */
+# ifdef BROKEN_REALPATH
+#  define realpath(x, y) _ssh_compat_realpath(x, y)
+# endif
+
 char *realpath(const char *path, char *resolved);
-#endif 
+#endif
 
 #ifndef HAVE_RRESVPORT_AF
 int rresvport_af(int *alport, sa_family_t af);
@@ -221,7 +229,7 @@ long long strtonum(const char *, long long, long long, const char **);
 
 /* multibyte character support */
 #ifndef HAVE_MBLEN
-# define mblen(x, y)	1
+# define mblen(x, y)	(1)
 #endif
 
 #if !defined(HAVE_VASPRINTF) || !defined(HAVE_VSNPRINTF)

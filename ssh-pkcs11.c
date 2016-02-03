@@ -1,4 +1,4 @@
-/* $OpenBSD: ssh-pkcs11.c,v 1.17 2015/02/03 08:07:20 deraadt Exp $ */
+/* $OpenBSD: ssh-pkcs11.c,v 1.21 2015/07/18 08:02:17 djm Exp $ */
 /*
  * Copyright (c) 2010 Markus Friedl.  All rights reserved.
  *
@@ -237,7 +237,7 @@ pkcs11_rsa_private_encrypt(int flen, const u_char *from, u_char *to, RSA *rsa,
 		{CKA_ID, NULL, 0},
 		{CKA_SIGN, NULL, sizeof(true_val) }
 	};
-	char			*pin, prompt[1024];
+	char			*pin = NULL, prompt[1024];
 	int			rval = -1;
 
 	key_filter[0].pValue = &private_key_class;
@@ -255,22 +255,30 @@ pkcs11_rsa_private_encrypt(int flen, const u_char *from, u_char *to, RSA *rsa,
 	si = &k11->provider->slotinfo[k11->slotidx];
 	if ((si->token.flags & CKF_LOGIN_REQUIRED) && !si->logged_in) {
 		if (!pkcs11_interactive) {
-			error("need pin");
+			error("need pin entry%s", (si->token.flags &
+			    CKF_PROTECTED_AUTHENTICATION_PATH) ?
+			    " on reader keypad" : "");
 			return (-1);
 		}
-		snprintf(prompt, sizeof(prompt), "Enter PIN for '%s': ",
-		    si->token.label);
-		pin = read_passphrase(prompt, RP_ALLOW_EOF);
-		if (pin == NULL)
-			return (-1);	/* bail out */
-		rv = f->C_Login(si->session, CKU_USER,
-		    (u_char *)pin, strlen(pin));
-		if (rv != CKR_OK && rv != CKR_USER_ALREADY_LOGGED_IN) {
+		if (si->token.flags & CKF_PROTECTED_AUTHENTICATION_PATH)
+			verbose("Deferring PIN entry to reader keypad.");
+		else {
+			snprintf(prompt, sizeof(prompt),
+			    "Enter PIN for '%s': ", si->token.label);
+			pin = read_passphrase(prompt, RP_ALLOW_EOF);
+			if (pin == NULL)
+				return (-1);	/* bail out */
+		}
+		rv = f->C_Login(si->session, CKU_USER, (u_char *)pin,
+		    (pin != NULL) ? strlen(pin) : 0);
+		if (pin != NULL) {
+			explicit_bzero(pin, strlen(pin));
 			free(pin);
+		}
+		if (rv != CKR_OK && rv != CKR_USER_ALREADY_LOGGED_IN) {
 			error("C_Login failed: %lu", rv);
 			return (-1);
 		}
-		free(pin);
 		si->logged_in = 1;
 	}
 	key_filter[1].pValue = k11->keyid;
@@ -473,15 +481,23 @@ pkcs11_fetch_keys_filter(struct pkcs11_provider *p, CK_ULONG slotidx,
 			error("C_GetAttributeValue failed: %lu", rv);
 			continue;
 		}
-		/* check that none of the attributes are zero length */
-		if (attribs[0].ulValueLen == 0 ||
-		    attribs[1].ulValueLen == 0 ||
+		/*
+		 * Allow CKA_ID (always first attribute) to be empty, but
+		 * ensure that none of the others are zero length.
+		 * XXX assumes CKA_ID is always first.
+		 */
+		if (attribs[1].ulValueLen == 0 ||
 		    attribs[2].ulValueLen == 0) {
 			continue;
 		}
 		/* allocate buffers for attributes */
-		for (i = 0; i < 3; i++)
-			attribs[i].pValue = xmalloc(attribs[i].ulValueLen);
+		for (i = 0; i < 3; i++) {
+			if (attribs[i].ulValueLen > 0) {
+				attribs[i].pValue = xmalloc(
+				    attribs[i].ulValueLen);
+			}
+		}
+
 		/*
 		 * retrieve ID, modulus and public exponent of RSA key,
 		 * or ID, subject and value for certificates.
@@ -527,7 +543,7 @@ pkcs11_fetch_keys_filter(struct pkcs11_provider *p, CK_ULONG slotidx,
 				sshkey_free(key);
 			} else {
 				/* expand key array and add key */
-				*keysp = xrealloc(*keysp, *nkeys + 1,
+				*keysp = xreallocarray(*keysp, *nkeys + 1,
 				    sizeof(struct sshkey *));
 				(*keysp)[*nkeys] = key;
 				*nkeys = *nkeys + 1;
@@ -621,6 +637,11 @@ pkcs11_add_provider(char *provider_id, char *pin, struct sshkey ***keyp)
 		if ((rv = f->C_GetTokenInfo(p->slotlist[i], token))
 		    != CKR_OK) {
 			error("C_GetTokenInfo failed: %lu", rv);
+			continue;
+		}
+		if ((token->flags & CKF_TOKEN_INITIALIZED) == 0) {
+			debug2("%s: ignoring uninitialised token in slot %lu",
+			    __func__, (unsigned long)i);
 			continue;
 		}
 		rmspace(token->label, sizeof(token->label));

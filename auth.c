@@ -1,4 +1,4 @@
-/* $OpenBSD: auth.c,v 1.110 2015/02/25 17:29:38 djm Exp $ */
+/* $OpenBSD: auth.c,v 1.113 2015/08/21 03:42:19 djm Exp $ */
 /*
  * Copyright (c) 2000 Markus Friedl.  All rights reserved.
  *
@@ -352,7 +352,9 @@ auth_root_allowed(const char *method)
 	case PERMIT_YES:
 		return 1;
 	case PERMIT_NO_PASSWD:
-		if (strcmp(method, "password") != 0)
+		if (strcmp(method, "publickey") == 0 ||
+		    strcmp(method, "hostbased") == 0 ||
+		    strcmp(method, "gssapi-with-mic") == 0)
 			return 1;
 		break;
 	case PERMIT_FORCED_ONLY:
@@ -400,8 +402,7 @@ expand_authorized_keys(const char *filename, struct passwd *pw)
 char *
 authorized_principals_file(struct passwd *pw)
 {
-	if (options.authorized_principals_file == NULL ||
-	    strcasecmp(options.authorized_principals_file, "none") == 0)
+	if (options.authorized_principals_file == NULL)
 		return NULL;
 	return expand_authorized_keys(options.authorized_principals_file, pw);
 }

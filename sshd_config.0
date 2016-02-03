@@ -20,14 +20,16 @@ DESCRIPTION
              Specifies what environment variables sent by the client will be
              copied into the session's environ(7).  See SendEnv in
              ssh_config(5) for how to configure the client.  Note that
-             environment passing is only supported for protocol 2.  Variables
-             are specified by name, which may contain the wildcard characters
-             M-bM-^@M-^X*M-bM-^@M-^Y and M-bM-^@M-^X?M-bM-^@M-^Y.  Multiple environment variables may be separated by
-             whitespace or spread across multiple AcceptEnv directives.  Be
-             warned that some environment variables could be used to bypass
-             restricted user environments.  For this reason, care should be
-             taken in the use of this directive.  The default is not to accept
-             any environment variables.
+             environment passing is only supported for protocol 2, and that
+             the TERM environment variable is always sent whenever the client
+             requests a pseudo-terminal as it is required by the protocol.
+             Variables are specified by name, which may contain the wildcard
+             characters M-bM-^@M-^X*M-bM-^@M-^Y and M-bM-^@M-^X?M-bM-^@M-^Y.  Multiple environment variables may be
+             separated by whitespace or spread across multiple AcceptEnv
+             directives.  Be warned that some environment variables could be
+             used to bypass restricted user environments.  For this reason,
+             care should be taken in the use of this directive.  The default
+             is not to accept any environment variables.
 
      AddressFamily
              Specifies which address family should be used by sshd(8).  Valid
@@ -122,15 +124,25 @@ DESCRIPTION
 
      AuthorizedKeysCommand
              Specifies a program to be used to look up the user's public keys.
-             The program must be owned by root and not writable by group or
-             others.  It will be invoked with a single argument of the
-             username being authenticated, and should produce on standard
-             output zero or more lines of authorized_keys output (see
-             AUTHORIZED_KEYS in sshd(8)).  If a key supplied by
-             AuthorizedKeysCommand does not successfully authenticate and
-             authorize the user then public key authentication continues using
-             the usual AuthorizedKeysFile files.  By default, no
-             AuthorizedKeysCommand is run.
+             The program must be owned by root, not writable by group or
+             others and specified by an absolute path.
+
+             Arguments to AuthorizedKeysCommand may be provided using the
+             following tokens, which will be expanded at runtime: %% is
+             replaced by a literal '%', %u is replaced by the username being
+             authenticated, %h is replaced by the home directory of the user
+             being authenticated, %t is replaced with the key type offered for
+             authentication, %f is replaced with the fingerprint of the key,
+             and %k is replaced with the key being offered for authentication.
+             If no arguments are specified then the username of the target
+             user will be supplied.
+
+             The program should produce on standard output zero or more lines
+             of authorized_keys output (see AUTHORIZED_KEYS in sshd(8)).  If a
+             key supplied by AuthorizedKeysCommand does not successfully
+             authenticate and authorize the user then public key
+             authentication continues using the usual AuthorizedKeysFile
+             files.  By default, no AuthorizedKeysCommand is run.
 
      AuthorizedKeysCommandUser
              Specifies the user under whose account the AuthorizedKeysCommand
@@ -152,6 +164,33 @@ DESCRIPTION
              relative to the user's home directory.  Multiple files may be
              listed, separated by whitespace.  The default is
              M-bM-^@M-^\.ssh/authorized_keys .ssh/authorized_keys2M-bM-^@M-^].
+
+     AuthorizedPrincipalsCommand
+             Specifies a program to be used to generate the list of allowed
+             certificate principals as per AuthorizedPrincipalsFile.  The
+             program must be owned by root, not writable by group or others
+             and specified by an absolute path.
+
+             Arguments to AuthorizedPrincipalsCommand may be provided using
+             the following tokens, which will be expanded at runtime: %% is
+             replaced by a literal '%', %u is replaced by the username being
+             authenticated and %h is replaced by the home directory of the
+             user being authenticated.
+
+             The program should produce on standard output zero or more lines
+             of AuthorizedPrincipalsFile output.  If either
+             AuthorizedPrincipalsCommand or AuthorizedPrincipalsFile is
+             specified, then certificates offered by the client for
+             authentication must contain a principal that is listed.  By
+             default, no AuthorizedPrincipalsCommand is run.
+
+     AuthorizedPrincipalsCommandUser
+             Specifies the user under whose account the
+             AuthorizedPrincipalsCommand is run.  It is recommended to use a
+             dedicated user that has no other role on the host than running
+             authorized principals commands.  If AuthorizedPrincipalsCommand
+             is specified but AuthorizedPrincipalsCommandUser is not, then
+             sshd(8) will refuse to start.
 
      AuthorizedPrincipalsFile
              Specifies a file that lists principal names that are accepted for
@@ -223,7 +262,11 @@ DESCRIPTION
 
      Ciphers
              Specifies the ciphers allowed for protocol version 2.  Multiple
-             ciphers must be comma-separated.  The supported ciphers are:
+             ciphers must be comma-separated.  If the specified value begins
+             with a M-bM-^@M-^X+M-bM-^@M-^Y character, then the specified ciphers will be appended
+             to the default set instead of replacing them.
+
+             The supported ciphers are:
 
                    3des-cbc
                    aes128-cbc
@@ -243,9 +286,9 @@ DESCRIPTION
 
              The default is:
 
+                   chacha20-poly1305@openssh.com,
                    aes128-ctr,aes192-ctr,aes256-ctr,
-                   aes128-gcm@openssh.com,aes256-gcm@openssh.com,
-                   chacha20-poly1305@openssh.com
+                   aes128-gcm@openssh.com,aes256-gcm@openssh.com
 
              The list of available ciphers may also be obtained using the -Q
              option of ssh(1) with an argument of M-bM-^@M-^\cipherM-bM-^@M-^].
@@ -344,11 +387,31 @@ DESCRIPTION
              cache on logout.  The default is M-bM-^@M-^\yesM-bM-^@M-^].  Note that this option
              applies to protocol version 2 only.
 
+     GSSAPIStrictAcceptorCheck
+             Determines whether to be strict about the identity of the GSSAPI
+             acceptor a client authenticates against.  If set to M-bM-^@M-^\yesM-bM-^@M-^] then
+             the client must authenticate against the host service on the
+             current hostname.  If set to M-bM-^@M-^\noM-bM-^@M-^] then the client may
+             authenticate against any service key stored in the machine's
+             default store.  This facility is provided to assist with
+             operation on multi homed machines.  The default is M-bM-^@M-^\yesM-bM-^@M-^].
+
      HostbasedAcceptedKeyTypes
              Specifies the key types that will be accepted for hostbased
-             authentication as a comma-separated pattern list.  The default
-             M-bM-^@M-^\*M-bM-^@M-^] will allow all key types.  The -Q option of ssh(1) may be
-             used to list supported key types.
+             authentication as a comma-separated pattern list.  Alternately if
+             the specified value begins with a M-bM-^@M-^X+M-bM-^@M-^Y character, then the
+             specified key types will be appended to the default set instead
+             of replacing them.  The default for this option is:
+
+                ecdsa-sha2-nistp256-cert-v01@openssh.com,
+                ecdsa-sha2-nistp384-cert-v01@openssh.com,
+                ecdsa-sha2-nistp521-cert-v01@openssh.com,
+                ssh-ed25519-cert-v01@openssh.com,
+                ssh-rsa-cert-v01@openssh.com,
+                ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,ecdsa-sha2-nistp521,
+                ssh-ed25519,ssh-rsa
+
+             The -Q option of ssh(1) may be used to list supported key types.
 
      HostbasedAuthentication
              Specifies whether rhosts or /etc/hosts.equiv authentication
@@ -377,19 +440,38 @@ DESCRIPTION
              default is /etc/ssh/ssh_host_key for protocol version 1, and
              /etc/ssh/ssh_host_dsa_key, /etc/ssh/ssh_host_ecdsa_key,
              /etc/ssh/ssh_host_ed25519_key and /etc/ssh/ssh_host_rsa_key for
-             protocol version 2.  Note that sshd(8) will refuse to use a file
-             if it is group/world-accessible.  It is possible to have multiple
-             host key files.  M-bM-^@M-^\rsa1M-bM-^@M-^] keys are used for version 1 and M-bM-^@M-^\dsaM-bM-^@M-^],
-             M-bM-^@M-^\ecdsaM-bM-^@M-^], M-bM-^@M-^\ed25519M-bM-^@M-^] or M-bM-^@M-^\rsaM-bM-^@M-^] are used for version 2 of the SSH
-             protocol.  It is also possible to specify public host key files
-             instead.  In this case operations on the private key will be
-             delegated to an ssh-agent(1).
+             protocol version 2.
+
+             Note that sshd(8) will refuse to use a file if it is group/world-
+             accessible and that the HostKeyAlgorithms option restricts which
+             of the keys are actually used by sshd(8).
+
+             It is possible to have multiple host key files.  M-bM-^@M-^\rsa1M-bM-^@M-^] keys are
+             used for version 1 and M-bM-^@M-^\dsaM-bM-^@M-^], M-bM-^@M-^\ecdsaM-bM-^@M-^], M-bM-^@M-^\ed25519M-bM-^@M-^] or M-bM-^@M-^\rsaM-bM-^@M-^] are
+             used for version 2 of the SSH protocol.  It is also possible to
+             specify public host key files instead.  In this case operations
+             on the private key will be delegated to an ssh-agent(1).
 
      HostKeyAgent
              Identifies the UNIX-domain socket used to communicate with an
              agent that has access to the private host keys.  If
              M-bM-^@M-^\SSH_AUTH_SOCKM-bM-^@M-^] is specified, the location of the socket will be
              read from the SSH_AUTH_SOCK environment variable.
+
+     HostKeyAlgorithms
+             Specifies the protocol version 2 host key algorithms that the
+             server offers.  The default for this option is:
+
+                ecdsa-sha2-nistp256-cert-v01@openssh.com,
+                ecdsa-sha2-nistp384-cert-v01@openssh.com,
+                ecdsa-sha2-nistp521-cert-v01@openssh.com,
+                ssh-ed25519-cert-v01@openssh.com,
+                ssh-rsa-cert-v01@openssh.com,
+                ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,ecdsa-sha2-nistp521,
+                ssh-ed25519,ssh-rsa
+
+             The list of available key types may also be obtained using the -Q
+             option of ssh(1) with an argument of M-bM-^@M-^\keyM-bM-^@M-^].
 
      IgnoreRhosts
              Specifies that .rhosts and .shosts files will not be used in
@@ -445,8 +527,10 @@ DESCRIPTION
 
      KexAlgorithms
              Specifies the available KEX (Key Exchange) algorithms.  Multiple
-             algorithms must be comma-separated.  The supported algorithms
-             are:
+             algorithms must be comma-separated.  Alternately if the specified
+             value begins with a M-bM-^@M-^X+M-bM-^@M-^Y character, then the specified methods
+             will be appended to the default set instead of replacing them.
+             The supported algorithms are:
 
                    curve25519-sha256@libssh.org
                    diffie-hellman-group1-sha1
@@ -484,10 +568,8 @@ DESCRIPTION
                    ListenAddress [host|IPv6_addr]:port
 
              If port is not specified, sshd will listen on the address and all
-             prior Port options specified.  The default is to listen on all
-             local addresses.  Multiple ListenAddress options are permitted.
-             Additionally, any Port options must precede this option for non-
-             port qualified addresses.
+             Port options specified.  The default is to listen on all local
+             addresses.  Multiple ListenAddress options are permitted.
 
      LoginGraceTime
              The server disconnects after this time if the user has not
@@ -505,9 +587,13 @@ DESCRIPTION
      MACs    Specifies the available MAC (message authentication code)
              algorithms.  The MAC algorithm is used in protocol version 2 for
              data integrity protection.  Multiple algorithms must be comma-
-             separated.  The algorithms that contain M-bM-^@M-^\-etmM-bM-^@M-^] calculate the MAC
-             after encryption (encrypt-then-mac).  These are considered safer
-             and their use recommended.  The supported MACs are:
+             separated.  If the specified value begins with a M-bM-^@M-^X+M-bM-^@M-^Y character,
+             then the specified algorithms will be appended to the default set
+             instead of replacing them.
+
+             The algorithms that contain M-bM-^@M-^\-etmM-bM-^@M-^] calculate the MAC after
+             encryption (encrypt-then-mac).  These are considered safer and
+             their use recommended.  The supported MACs are:
 
                    hmac-md5
                    hmac-md5-96
@@ -627,11 +713,13 @@ DESCRIPTION
 
      PermitRootLogin
              Specifies whether root can log in using ssh(1).  The argument
-             must be M-bM-^@M-^\yesM-bM-^@M-^], M-bM-^@M-^\without-passwordM-bM-^@M-^], M-bM-^@M-^\forced-commands-onlyM-bM-^@M-^], or
-             M-bM-^@M-^\noM-bM-^@M-^].  The default is M-bM-^@M-^\yesM-bM-^@M-^].
+             must be M-bM-^@M-^\yesM-bM-^@M-^], M-bM-^@M-^\prohibit-passwordM-bM-^@M-^], M-bM-^@M-^\without-passwordM-bM-^@M-^],
+             M-bM-^@M-^\forced-commands-onlyM-bM-^@M-^], or M-bM-^@M-^\noM-bM-^@M-^].  The default is
+             M-bM-^@M-^\prohibit-passwordM-bM-^@M-^].
 
-             If this option is set to M-bM-^@M-^\without-passwordM-bM-^@M-^], password
-             authentication is disabled for root.
+             If this option is set to M-bM-^@M-^\prohibit-passwordM-bM-^@M-^] or
+             M-bM-^@M-^\without-passwordM-bM-^@M-^], password and keyboard-interactive
+             authentication are disabled for root.
 
              If this option is set to M-bM-^@M-^\forced-commands-onlyM-bM-^@M-^], root login with
              public key authentication will be allowed, but only if the
@@ -667,7 +755,8 @@ DESCRIPTION
 
      PidFile
              Specifies the file that contains the process ID of the SSH
-             daemon.  The default is /var/run/sshd.pid.
+             daemon, or M-bM-^@M-^\noneM-bM-^@M-^] to not write one.  The default is
+             /var/run/sshd.pid.
 
      Port    Specifies the port number that sshd(8) listens on.  The default
              is 22.  Multiple options of this type are permitted.  See also
@@ -693,9 +782,20 @@ DESCRIPTION
 
      PubkeyAcceptedKeyTypes
              Specifies the key types that will be accepted for public key
-             authentication as a comma-separated pattern list.  The default
-             M-bM-^@M-^\*M-bM-^@M-^] will allow all key types.  The -Q option of ssh(1) may be
-             used to list supported key types.
+             authentication as a comma-separated pattern list.  Alternately if
+             the specified value begins with a M-bM-^@M-^X+M-bM-^@M-^Y character, then the
+             specified key types will be appended to the default set instead
+             of replacing them.  The default for this option is:
+
+                ecdsa-sha2-nistp256-cert-v01@openssh.com,
+                ecdsa-sha2-nistp384-cert-v01@openssh.com,
+                ecdsa-sha2-nistp521-cert-v01@openssh.com,
+                ssh-ed25519-cert-v01@openssh.com,
+                ssh-rsa-cert-v01@openssh.com,
+                ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,ecdsa-sha2-nistp521,
+                ssh-ed25519,ssh-rsa
+
+             The -Q option of ssh(1) may be used to list supported key types.
 
      PubkeyAuthentication
              Specifies whether public key authentication is allowed.  The
@@ -718,13 +818,14 @@ DESCRIPTION
              applies to protocol version 2 only.
 
      RevokedKeys
-             Specifies revoked public keys.  Keys listed in this file will be
-             refused for public key authentication.  Note that if this file is
-             not readable, then public key authentication will be refused for
-             all users.  Keys may be specified as a text file, listing one
-             public key per line, or as an OpenSSH Key Revocation List (KRL)
-             as generated by ssh-keygen(1).  For more information on KRLs, see
-             the KEY REVOCATION LISTS section in ssh-keygen(1).
+             Specifies revoked public keys file, or M-bM-^@M-^\noneM-bM-^@M-^] to not use one.
+             Keys listed in this file will be refused for public key
+             authentication.  Note that if this file is not readable, then
+             public key authentication will be refused for all users.  Keys
+             may be specified as a text file, listing one public key per line,
+             or as an OpenSSH Key Revocation List (KRL) as generated by
+             ssh-keygen(1).  For more information on KRLs, see the KEY
+             REVOCATION LISTS section in ssh-keygen(1).
 
      RhostsRSAAuthentication
              Specifies whether rhosts or /etc/hosts.equiv authentication
@@ -738,7 +839,7 @@ DESCRIPTION
 
      ServerKeyBits
              Defines the number of bits in the ephemeral protocol version 1
-             server key.  The minimum value is 512, and the default is 1024.
+             server key.  The default and minimum value is 1024.
 
      StreamLocalBindMask
              Sets the octal file creation mode mask (umask) used when creating
@@ -810,18 +911,23 @@ DESCRIPTION
      TrustedUserCAKeys
              Specifies a file containing public keys of certificate
              authorities that are trusted to sign user certificates for
-             authentication.  Keys are listed one per line; empty lines and
-             comments starting with M-bM-^@M-^X#M-bM-^@M-^Y are allowed.  If a certificate is
-             presented for authentication and has its signing CA key listed in
-             this file, then it may be used for authentication for any user
-             listed in the certificate's principals list.  Note that
-             certificates that lack a list of principals will not be permitted
-             for authentication using TrustedUserCAKeys.  For more details on
-             certificates, see the CERTIFICATES section in ssh-keygen(1).
+             authentication, or M-bM-^@M-^\noneM-bM-^@M-^] to not use one.  Keys are listed one
+             per line; empty lines and comments starting with M-bM-^@M-^X#M-bM-^@M-^Y are allowed.
+             If a certificate is presented for authentication and has its
+             signing CA key listed in this file, then it may be used for
+             authentication for any user listed in the certificate's
+             principals list.  Note that certificates that lack a list of
+             principals will not be permitted for authentication using
+             TrustedUserCAKeys.  For more details on certificates, see the
+             CERTIFICATES section in ssh-keygen(1).
 
-     UseDNS  Specifies whether sshd(8) should look up the remote host name and
-             check that the resolved host name for the remote IP address maps
-             back to the very same IP address.  The default is M-bM-^@M-^\noM-bM-^@M-^].
+     UseDNS  Specifies whether sshd(8) should look up the remote host name,
+             and to check that the resolved host name for the remote IP
+             address maps back to the very same IP address.
+
+             If this option is set to M-bM-^@M-^\noM-bM-^@M-^] (the default) then only addresses
+             and not host names may be used in ~/.ssh/known_hosts from and
+             sshd_config Match Host directives.
 
      UseLogin
              Specifies whether login(1) is used for interactive login
@@ -901,8 +1007,8 @@ DESCRIPTION
              default is M-bM-^@M-^\yesM-bM-^@M-^].
 
      XAuthLocation
-             Specifies the full pathname of the xauth(1) program.  The default
-             is /usr/X11R6/bin/xauth.
+             Specifies the full pathname of the xauth(1) program, or M-bM-^@M-^\noneM-bM-^@M-^] to
+             not use one.  The default is /usr/X11R6/bin/xauth.
 
 TIME FORMATS
      sshd(8) command-line arguments and configuration file options that
@@ -943,4 +1049,4 @@ AUTHORS
      versions 1.5 and 2.0.  Niels Provos and Markus Friedl contributed support
      for privilege separation.
 
-OpenBSD 5.7                    February 20, 2015                   OpenBSD 5.7
+OpenBSD 5.8                     August 14, 2015                    OpenBSD 5.8
