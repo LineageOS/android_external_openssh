@@ -1,4 +1,4 @@
-/* $OpenBSD: sftp-server.c,v 1.105 2015/01/20 23:14:00 deraadt Exp $ */
+/* $OpenBSD: sftp-server.c,v 1.107 2015/08/20 22:32:42 deraadt Exp $ */
 /*
  * Copyright (c) 2000-2004 Markus Friedl.  All rights reserved.
  *
@@ -40,7 +40,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <pwd.h>
 #include <time.h>
 #include <unistd.h>
 #include <stdarg.h>
@@ -310,7 +309,7 @@ handle_new(int use, const char *name, int fd, int flags, DIR *dirp)
 		if (num_handles + 1 <= num_handles)
 			return -1;
 		num_handles++;
-		handles = xrealloc(handles, num_handles, sizeof(Handle));
+		handles = xreallocarray(handles, num_handles, sizeof(Handle));
 		handle_unused(num_handles - 1);
 	}
 
@@ -1063,7 +1062,7 @@ process_readdir(u_int32_t id)
 		while ((dp = readdir(dirp)) != NULL) {
 			if (count >= nstats) {
 				nstats *= 2;
-				stats = xrealloc(stats, nstats, sizeof(Stat));
+				stats = xreallocarray(stats, nstats, sizeof(Stat));
 			}
 /* XXX OVERFLOW ? */
 			snprintf(pathname, sizeof pathname, "%s%s%s", path,
@@ -1633,8 +1632,8 @@ sftp_server_main(int argc, char **argv, struct passwd *user_pw)
 		fatal("%s: sshbuf_new failed", __func__);
 
 	set_size = howmany(max + 1, NFDBITS) * sizeof(fd_mask);
-	rset = (fd_set *)xmalloc(set_size);
-	wset = (fd_set *)xmalloc(set_size);
+	rset = xmalloc(set_size);
+	wset = xmalloc(set_size);
 
 	if (homedir != NULL) {
 		if (chdir(homedir) != 0) {
