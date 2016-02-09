@@ -125,6 +125,9 @@ LOCAL_MODULE := libssh
 LOCAL_CFLAGS+=-O3 -Wno-unused-parameter
 
 LOCAL_CFLAGS += -DGCE_PLATFORM_SDK_VERSION=$(PLATFORM_SDK_VERSION)
+ifneq ($(filter gce_x86 calypso, $(TARGET_DEVICE)),)
+LOCAL_CFLAGS += -DANDROID_GCE -DSSHDIR=\"/var/run/ssh\"
+endif
 
 include $(BUILD_SHARED_LIBRARY)
 
