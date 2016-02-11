@@ -1,4 +1,4 @@
-/* $OpenBSD: ssh.c,v 1.416 2015/03/03 06:48:58 djm Exp $ */
+/* $OpenBSD: ssh.c,v 1.420 2015/07/30 00:01:34 djm Exp $ */
 /*
  * Author: Tatu Ylonen <ylo@cs.hut.fi>
  * Copyright (c) 1995 Tatu Ylonen <ylo@cs.hut.fi>, Espoo, Finland
@@ -108,6 +108,7 @@
 #include "roaming.h"
 #include "version.h"
 #include "ssherr.h"
+#include "myproposal.h"
 
 #ifdef ENABLE_PKCS11
 #include "ssh-pkcs11.h"
@@ -203,10 +204,10 @@ usage(void)
 "usage: ssh [-1246AaCfGgKkMNnqsTtVvXxYy] [-b bind_address] [-c cipher_spec]\n"
 "           [-D [bind_address:]port] [-E log_file] [-e escape_char]\n"
 "           [-F configfile] [-I pkcs11] [-i identity_file]\n"
-"           [-L [bind_address:]port:host:hostport] [-l login_name] [-m mac_spec]\n"
+"           [-L address] [-l login_name] [-m mac_spec]\n"
 "           [-O ctl_cmd] [-o option] [-p port]\n"
 "           [-Q cipher | cipher-auth | mac | kex | key]\n"
-"           [-R [bind_address:]port:host:hostport] [-S ctl_path] [-W host:port]\n"
+"           [-R address] [-S ctl_path] [-W host:port]\n"
 "           [-w local_tun[:remote_tun]] [user@]hostname [command]\n"
 	);
 	exit(255);
@@ -356,10 +357,8 @@ check_follow_cname(char **namep, const char *cname)
 	debug3("%s: check \"%s\" CNAME \"%s\"", __func__, *namep, cname);
 	for (i = 0; i < options.num_permitted_cnames; i++) {
 		rule = options.permitted_cnames + i;
-		if (match_pattern_list(*namep, rule->source_list,
-		    strlen(rule->source_list), 1) != 1 ||
-		    match_pattern_list(cname, rule->target_list,
-		    strlen(rule->target_list), 1) != 1)
+		if (match_pattern_list(*namep, rule->source_list, 1) != 1 ||
+		    match_pattern_list(cname, rule->target_list, 1) != 1)
 			continue;
 		verbose("Canonicalized DNS aliased hostname "
 		    "\"%s\" => \"%s\"", *namep, cname);
@@ -796,26 +795,26 @@ main(int ac, char **av)
 			}
 			break;
 		case 'c':
-			if (ciphers_valid(optarg)) {
+			if (ciphers_valid(*optarg == '+' ?
+			    optarg + 1 : optarg)) {
 				/* SSH2 only */
 				options.ciphers = xstrdup(optarg);
 				options.cipher = SSH_CIPHER_INVALID;
-			} else {
-				/* SSH1 only */
-				options.cipher = cipher_number(optarg);
-				if (options.cipher == -1) {
-					fprintf(stderr,
-					    "Unknown cipher type '%s'\n",
-					    optarg);
-					exit(255);
-				}
-				if (options.cipher == SSH_CIPHER_3DES)
-					options.ciphers = "3des-cbc";
-				else if (options.cipher == SSH_CIPHER_BLOWFISH)
-					options.ciphers = "blowfish-cbc";
-				else
-					options.ciphers = (char *)-1;
+				break;
 			}
+			/* SSH1 only */
+			options.cipher = cipher_number(optarg);
+			if (options.cipher == -1) {
+				fprintf(stderr, "Unknown cipher type '%s'\n",
+				    optarg);
+				exit(255);
+			}
+			if (options.cipher == SSH_CIPHER_3DES)
+				options.ciphers = xstrdup("3des-cbc");
+			else if (options.cipher == SSH_CIPHER_BLOWFISH)
+				options.ciphers = xstrdup("blowfish-cbc");
+			else
+				options.ciphers = xstrdup(KEX_CLIENT_ENCRYPT);
 			break;
 		case 'm':
 			if (mac_valid(optarg))
@@ -1673,6 +1672,8 @@ ssh_session(void)
 	}
 	/* Request X11 forwarding if enabled and DISPLAY is set. */
 	display = getenv("DISPLAY");
+	if (display == NULL && options.forward_x11)
+		debug("X11 forwarding requested but DISPLAY not set");
 	if (options.forward_x11 && display != NULL) {
 		char *proto, *data;
 		/* Get reasonable local authentication information. */
@@ -1774,6 +1775,8 @@ ssh_session2_setup(int id, int success, void *arg)
 		return; /* No need for error message, channels code sens one */
 
 	display = getenv("DISPLAY");
+	if (display == NULL && options.forward_x11)
+		debug("X11 forwarding requested but DISPLAY not set");
 	if (options.forward_x11 && display != NULL) {
 		char *proto, *data;
 		/* Get reasonable local authentication information. */

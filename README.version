@@ -1,4 +1,4 @@
-URL: ftp://ftp.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-6.8p1.tar.gz
-Version: 6.8p1
+URL: ftp://ftp.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-7.1p2.tar.gz
+Version: 7.1p2
 BugComponent: 116028
 Owners: ghartman, yim

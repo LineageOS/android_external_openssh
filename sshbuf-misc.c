@@ -1,4 +1,4 @@
-/*	$OpenBSD: sshbuf-misc.c,v 1.3 2015/02/05 12:59:57 millert Exp $	*/
+/*	$OpenBSD: sshbuf-misc.c,v 1.5 2015/10/05 17:11:21 djm Exp $	*/
 /*
  * Copyright (c) 2011 Damien Miller
  *
@@ -42,7 +42,7 @@ sshbuf_dump_data(const void *s, size_t len, FILE *f)
 	const u_char *p = (const u_char *)s;
 
 	for (i = 0; i < len; i += 16) {
-		fprintf(f, "%.4zd: ", i);
+		fprintf(f, "%.4zu: ", i);
 		for (j = i; j < i + 16; j++) {
 			if (j < len)
 				fprintf(f, "%02x ", p[j]);
@@ -103,7 +103,7 @@ sshbuf_dtob64(struct sshbuf *buf)
 	if (SIZE_MAX / 2 <= len || (ret = malloc(plen)) == NULL)
 		return NULL;
 	if ((r = b64_ntop(p, len, ret, plen)) == -1) {
-		bzero(ret, plen);
+		explicit_bzero(ret, plen);
 		free(ret);
 		return NULL;
 	}
@@ -122,16 +122,16 @@ sshbuf_b64tod(struct sshbuf *buf, const char *b64)
 	if ((p = malloc(plen)) == NULL)
 		return SSH_ERR_ALLOC_FAIL;
 	if ((nlen = b64_pton(b64, p, plen)) < 0) {
-		bzero(p, plen);
+		explicit_bzero(p, plen);
 		free(p);
 		return SSH_ERR_INVALID_FORMAT;
 	}
 	if ((r = sshbuf_put(buf, p, nlen)) < 0) {
-		bzero(p, plen);
+		explicit_bzero(p, plen);
 		free(p);
 		return r;
 	}
-	bzero(p, plen);
+	explicit_bzero(p, plen);
 	free(p);
 	return 0;
 }
