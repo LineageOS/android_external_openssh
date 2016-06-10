@@ -629,7 +629,7 @@ getpwnamallow(const char *user)
 	aix_setauthdb(user);
 #endif
 
-#ifdef ANDROID_GCE
+#if defined(ANDROID)
 	// Android has a fixed set of users. Any incoming user that we can't
 	// identify should be authenticated as the shell user.
 	if (strcmp(user, "root") && strcmp(user, "shell")) {
