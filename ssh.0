@@ -6,12 +6,11 @@ NAME
 SYNOPSIS
      ssh [-1246AaCfGgKkMNnqsTtVvXxYy] [-b bind_address] [-c cipher_spec]
          [-D [bind_address:]port] [-E log_file] [-e escape_char]
-         [-F configfile] [-I pkcs11] [-i identity_file]
-         [-L [bind_address:]port:host:hostport] [-l login_name] [-m mac_spec]
-         [-O ctl_cmd] [-o option] [-p port]
+         [-F configfile] [-I pkcs11] [-i identity_file] [-L address]
+         [-l login_name] [-m mac_spec] [-O ctl_cmd] [-o option] [-p port]
          [-Q cipher | cipher-auth | mac | kex | key | protocol-version]
-         [-R [bind_address:]port:host:hostport] [-S ctl_path] [-W host:port]
-         [-w local_tun[:remote_tun]] [user@]hostname [command]
+         [-R address] [-S ctl_path] [-W host:port] [-w local_tun[:remote_tun]]
+         [user@]hostname [command]
 
 DESCRIPTION
      ssh (SSH client) is a program for logging into a remote machine and for
@@ -156,22 +155,29 @@ DESCRIPTION
              server.
 
      -L [bind_address:]port:host:hostport
-             Specifies that the given port on the local (client) host is to be
-             forwarded to the given host and port on the remote side.  This
-             works by allocating a socket to listen to port on the local side,
-             optionally bound to the specified bind_address.  Whenever a
-             connection is made to this port, the connection is forwarded over
-             the secure channel, and a connection is made to host port
-             hostport from the remote machine.  Port forwardings can also be
-             specified in the configuration file.  IPv6 addresses can be
-             specified by enclosing the address in square brackets.  Only the
-             superuser can forward privileged ports.  By default, the local
-             port is bound in accordance with the GatewayPorts setting.
-             However, an explicit bind_address may be used to bind the
-             connection to a specific address.  The bind_address of
-             M-bM-^@M-^\localhostM-bM-^@M-^] indicates that the listening port be bound for local
-             use only, while an empty address or M-bM-^@M-^X*M-bM-^@M-^Y indicates that the port
-             should be available from all interfaces.
+     -L [bind_address:]port:remote_socket
+     -L local_socket:host:hostport
+     -L local_socket:remote_socket
+             Specifies that connections to the given TCP port or Unix socket
+             on the local (client) host are to be forwarded to the given host
+             and port, or Unix socket, on the remote side.  This works by
+             allocating a socket to listen to either a TCP port on the local
+             side, optionally bound to the specified bind_address, or to a
+             Unix socket.  Whenever a connection is made to the local port or
+             socket, the connection is forwarded over the secure channel, and
+             a connection is made to either host port hostport, or the Unix
+             socket remote_socket, from the remote machine.
+
+             Port forwardings can also be specified in the configuration file.
+             Only the superuser can forward privileged ports.  IPv6 addresses
+             can be specified by enclosing the address in square brackets.
+
+             By default, the local port is bound in accordance with the
+             GatewayPorts setting.  However, an explicit bind_address may be
+             used to bind the connection to a specific address.  The
+             bind_address of M-bM-^@M-^\localhostM-bM-^@M-^] indicates that the listening port be
+             bound for local use only, while an empty address or M-bM-^@M-^X*M-bM-^@M-^Y indicates
+             that the port should be available from all interfaces.
 
      -l login_name
              Specifies the user to log in as on the remote machine.  This also
@@ -278,6 +284,7 @@ DESCRIPTION
                    Protocol
                    ProxyCommand
                    ProxyUseFdpass
+                   PubkeyAcceptedKeyTypes
                    PubkeyAuthentication
                    RekeyLimit
                    RemoteForward
@@ -317,19 +324,24 @@ DESCRIPTION
              suppressed.
 
      -R [bind_address:]port:host:hostport
-             Specifies that the given port on the remote (server) host is to
-             be forwarded to the given host and port on the local side.  This
-             works by allocating a socket to listen to port on the remote
-             side, and whenever a connection is made to this port, the
-             connection is forwarded over the secure channel, and a connection
-             is made to host port hostport from the local machine.
+     -R [bind_address:]port:local_socket
+     -R remote_socket:host:hostport
+     -R remote_socket:local_socket
+             Specifies that connections to the given TCP port or Unix socket
+             on the remote (server) host are to be forwarded to the given host
+             and port, or Unix socket, on the local side.  This works by
+             allocating a socket to listen to either a TCP port or to a Unix
+             socket on the remote side.  Whenever a connection is made to this
+             port or Unix socket, the connection is forwarded over the secure
+             channel, and a connection is made to either host port hostport,
+             or local_socket, from the local machine.
 
              Port forwardings can also be specified in the configuration file.
              Privileged ports can be forwarded only when logging in as root on
              the remote machine.  IPv6 addresses can be specified by enclosing
              the address in square brackets.
 
-             By default, the listening socket on the server will be bound to
+             By default, TCP listening sockets on the server will be bound to
              the loopback interface only.  This may be overridden by
              specifying a bind_address.  An empty bind_address, or the address
              M-bM-^@M-^X*M-bM-^@M-^Y, indicates that the remote socket should listen on all
@@ -354,9 +366,9 @@ DESCRIPTION
              applications (eg. sftp(1)).  The subsystem is specified as the
              remote command.
 
-     -T      Disable pseudo-tty allocation.
+     -T      Disable pseudo-terminal allocation.
 
-     -t      Force pseudo-tty allocation.  This can be used to execute
+     -t      Force pseudo-terminal allocation.  This can be used to execute
              arbitrary screen-based programs on a remote machine, which can be
              very useful, e.g. when implementing menu services.  Multiple -t
              options force tty allocation, even if ssh has no local tty.
@@ -510,17 +522,22 @@ AUTHENTICATION
      whose host key is not known or has changed.
 
      When the user's identity has been accepted by the server, the server
-     either executes the given command, or logs into the machine and gives the
-     user a normal shell on the remote machine.  All communication with the
+     either executes the given command in a non-interactive session or, if no
+     command has been specified, logs into the machine and gives the user a
+     normal shell as an interactive session.  All communication with the
      remote command or shell will be automatically encrypted.
 
-     If a pseudo-terminal has been allocated (normal login session), the user
-     may use the escape characters noted below.
+     If an interactive session is requested ssh by default will only request a
+     pseudo-terminal (pty) for interactive sessions when the client has one.
+     The flags -T and -t can be used to override this behaviour.
 
-     If no pseudo-tty has been allocated, the session is transparent and can
-     be used to reliably transfer binary data.  On most systems, setting the
-     escape character to M-bM-^@M-^\noneM-bM-^@M-^] will also make the session transparent even if
-     a tty is used.
+     If a pseudo-terminal has been allocated the user may use the escape
+     characters noted below.
+
+     If no pseudo-terminal has been allocated, the session is transparent and
+     can be used to reliably transfer binary data.  On most systems, setting
+     the escape character to M-bM-^@M-^\noneM-bM-^@M-^] will also make the session transparent
+     even if a tty is used.
 
      The session terminates when the command or shell on the remote machine
      exits and all X11 and TCP connections have been closed.
@@ -638,16 +655,20 @@ VERIFYING HOST KEYS
            $ ssh-keygen -l -f /etc/ssh/ssh_host_rsa_key
 
      If the fingerprint is already known, it can be matched and the key can be
-     accepted or rejected.  Because of the difficulty of comparing host keys
-     just by looking at fingerprint strings, there is also support to compare
-     host keys visually, using random art.  By setting the VisualHostKey
-     option to M-bM-^@M-^\yesM-bM-^@M-^], a small ASCII graphic gets displayed on every login to a
-     server, no matter if the session itself is interactive or not.  By
-     learning the pattern a known server produces, a user can easily find out
-     that the host key has changed when a completely different pattern is
-     displayed.  Because these patterns are not unambiguous however, a pattern
-     that looks similar to the pattern remembered only gives a good
-     probability that the host key is the same, not guaranteed proof.
+     accepted or rejected.  If only legacy (MD5) fingerprints for the server
+     are available, the ssh-keygen(1) -E option may be used to downgrade the
+     fingerprint algorithm to match.
+
+     Because of the difficulty of comparing host keys just by looking at
+     fingerprint strings, there is also support to compare host keys visually,
+     using random art.  By setting the VisualHostKey option to M-bM-^@M-^\yesM-bM-^@M-^], a small
+     ASCII graphic gets displayed on every login to a server, no matter if the
+     session itself is interactive or not.  By learning the pattern a known
+     server produces, a user can easily find out that the host key has changed
+     when a completely different pattern is displayed.  Because these patterns
+     are not unambiguous however, a pattern that looks similar to the pattern
+     remembered only gives a good probability that the host key is the same,
+     not guaranteed proof.
 
      To get a listing of the fingerprints along with their random art for all
      known hosts, the following command line can be used:
@@ -948,4 +969,4 @@ AUTHORS
      created OpenSSH.  Markus Friedl contributed the support for SSH protocol
      versions 1.5 and 2.0.
 
-OpenBSD 5.7                      March 3, 2015                     OpenBSD 5.7
+OpenBSD 5.8                      July 20, 2015                     OpenBSD 5.8

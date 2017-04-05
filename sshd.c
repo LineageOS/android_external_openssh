@@ -1,4 +1,4 @@
-/* $OpenBSD: sshd.c,v 1.444 2015/02/20 22:17:21 djm Exp $ */
+/* $OpenBSD: sshd.c,v 1.458 2015/08/20 22:32:42 deraadt Exp $ */
 /*
  * Author: Tatu Ylonen <ylo@cs.hut.fi>
  * Copyright (c) 1995 Tatu Ylonen <ylo@cs.hut.fi>, Espoo, Finland
@@ -95,6 +95,7 @@
 #include "log.h"
 #include "buffer.h"
 #include "misc.h"
+#include "match.h"
 #include "servconf.h"
 #include "uidswap.h"
 #include "compat.h"
@@ -801,8 +802,15 @@ list_hostkey_types(void)
 		key = sensitive_data.host_keys[i];
 		if (key == NULL)
 			key = sensitive_data.host_pubkeys[i];
-		if (key == NULL)
+		if (key == NULL || key->type == KEY_RSA1)
 			continue;
+		/* Check that the key is accepted in HostkeyAlgorithms */
+		if (match_pattern_list(sshkey_ssh_name(key),
+		    options.hostkeyalgorithms, 0) != 1) {
+			debug3("%s: %s key not permitted by HostkeyAlgorithms",
+			    __func__, sshkey_ssh_name(key));
+			continue;
+		}
 		switch (key->type) {
 		case KEY_RSA:
 		case KEY_DSA:
@@ -819,8 +827,6 @@ list_hostkey_types(void)
 		if (key == NULL)
 			continue;
 		switch (key->type) {
-		case KEY_RSA_CERT_V00:
-		case KEY_DSA_CERT_V00:
 		case KEY_RSA_CERT:
 		case KEY_DSA_CERT:
 		case KEY_ECDSA_CERT:
@@ -847,8 +853,6 @@ get_hostkey_by_type(int type, int nid, int need_private, struct ssh *ssh)
 
 	for (i = 0; i < options.num_host_key_files; i++) {
 		switch (type) {
-		case KEY_RSA_CERT_V00:
-		case KEY_DSA_CERT_V00:
 		case KEY_RSA_CERT:
 		case KEY_DSA_CERT:
 		case KEY_ECDSA_CERT:
@@ -931,6 +935,10 @@ notify_hostkeys(struct ssh *ssh)
 	struct sshkey *key;
 	int i, nkeys, r;
 	char *fp;
+
+	/* Some clients cannot cope with the hostkeys message, skip those. */
+	if (datafellows & SSH_BUG_HOSTKEYS)
+		return;
 
 	if ((buf = sshbuf_new()) == NULL)
 		fatal("%s: sshbuf_new", __func__);
@@ -1096,8 +1104,6 @@ recv_rexec_state(int fd, Buffer *conf)
 		    sensitive_data.server_key->rsa) != 0)
 			fatal("%s: rsa_generate_additional_parameters "
 			    "error", __func__);
-#else
-		fatal("ssh1 not supported");
 #endif
 	}
 
@@ -1251,7 +1257,7 @@ server_accept_loop(int *sock_in, int *sock_out, int *newsock, int *config_s)
 			sighup_restart();
 		if (fdset != NULL)
 			free(fdset);
-		fdset = (fd_set *)xcalloc(howmany(maxfd + 1, NFDBITS),
+		fdset = xcalloc(howmany(maxfd + 1, NFDBITS),
 		    sizeof(fd_mask));
 
 		for (i = 0; i < num_listen_socks; i++)
@@ -1459,7 +1465,7 @@ main(int ac, char **av)
 	int sock_in = -1, sock_out = -1, newsock = -1;
 	const char *remote_ip;
 	int remote_port;
-	char *fp, *line, *logfile = NULL;
+	char *fp, *line, *laddr, *logfile = NULL;
 	int config_s[2] = { -1 , -1 };
 	u_int n;
 	u_int64_t ibytes, obytes;
@@ -1499,7 +1505,8 @@ main(int ac, char **av)
 	initialize_server_options(&options);
 
 	/* Parse command-line arguments. */
-	while ((opt = getopt(ac, av, "f:p:b:k:h:g:u:o:C:dDeE:iqrtQRT46")) != -1) {
+	while ((opt = getopt(ac, av,
+	    "C:E:b:c:f:g:h:k:o:p:u:46DQRTdeiqrt")) != -1) {
 		switch (opt) {
 		case '4':
 			options.address_family = AF_INET;
@@ -1681,7 +1688,7 @@ main(int ac, char **av)
 	buffer_init(&cfg);
 	if (rexeced_flag)
 		recv_rexec_state(REEXEC_CONFIG_PASS_FD, &cfg);
-	else
+	else if (strcasecmp(config_file_name, "none") != 0)
 		load_server_config(config_file_name, &cfg);
 
 	parse_server_config(&options, rexeced_flag ? "rexec" : config_file_name,
@@ -1702,6 +1709,11 @@ main(int ac, char **av)
 	    strcasecmp(options.authorized_keys_command, "none") != 0))
 		fatal("AuthorizedKeysCommand set without "
 		    "AuthorizedKeysCommandUser");
+	if (options.authorized_principals_command_user == NULL &&
+	    (options.authorized_principals_command != NULL &&
+	    strcasecmp(options.authorized_principals_command, "none") != 0))
+		fatal("AuthorizedPrincipalsCommand set without "
+		    "AuthorizedPrincipalsCommandUser");
 
 	/*
 	 * Check whether there is any path through configured auth methods.
@@ -1882,8 +1894,8 @@ main(int ac, char **av)
 #ifdef WITH_SSH1
 	/* Check certain values for sanity. */
 	if (options.protocol & SSH_PROTO_1) {
-		if (options.server_key_bits < 512 ||
-		    options.server_key_bits > 32768) {
+		if (options.server_key_bits < SSH_RSA_MINIMUM_MODULUS_SIZE ||
+		    options.server_key_bits > OPENSSL_RSA_MAX_MODULUS_BITS) {
 			fprintf(stderr, "Bad server key size.\n");
 			exit(1);
 		}
@@ -2140,9 +2152,10 @@ main(int ac, char **av)
 #endif
 
 	/* Log the connection. */
+	laddr = get_local_ipaddr(sock_in);
 	verbose("Connection from %s port %d on %s port %d",
-	    remote_ip, remote_port,
-	    get_local_ipaddr(sock_in), get_local_port());
+	    remote_ip, remote_port, laddr,  get_local_port());
+	free(laddr);
 
 	/*
 	 * We don't want to listen forever unless the other side
@@ -2530,9 +2543,7 @@ sshd_hostkey_sign(Key *privkey, Key *pubkey, u_char **signature, size_t *slen,
 	return 0;
 }
 
-/*
- * SSH2 key exchange: diffie-hellman-group1-sha1
- */
+/* SSH2 key exchange */
 static void
 do_ssh2_kex(void)
 {
@@ -2540,19 +2551,15 @@ do_ssh2_kex(void)
 	struct kex *kex;
 	int r;
 
-	if (options.ciphers != NULL) {
-		myproposal[PROPOSAL_ENC_ALGS_CTOS] =
-		myproposal[PROPOSAL_ENC_ALGS_STOC] = options.ciphers;
-	}
-	myproposal[PROPOSAL_ENC_ALGS_CTOS] =
-	    compat_cipher_proposal(myproposal[PROPOSAL_ENC_ALGS_CTOS]);
-	myproposal[PROPOSAL_ENC_ALGS_STOC] =
-	    compat_cipher_proposal(myproposal[PROPOSAL_ENC_ALGS_STOC]);
+	myproposal[PROPOSAL_KEX_ALGS] = compat_kex_proposal(
+	    options.kex_algorithms);
+	myproposal[PROPOSAL_ENC_ALGS_CTOS] = compat_cipher_proposal(
+	    options.ciphers);
+	myproposal[PROPOSAL_ENC_ALGS_STOC] = compat_cipher_proposal(
+	    options.ciphers);
+	myproposal[PROPOSAL_MAC_ALGS_CTOS] =
+	    myproposal[PROPOSAL_MAC_ALGS_STOC] = options.macs;
 
-	if (options.macs != NULL) {
-		myproposal[PROPOSAL_MAC_ALGS_CTOS] =
-		myproposal[PROPOSAL_MAC_ALGS_STOC] = options.macs;
-	}
 	if (options.compression == COMP_NONE) {
 		myproposal[PROPOSAL_COMP_ALGS_CTOS] =
 		myproposal[PROPOSAL_COMP_ALGS_STOC] = "none";
@@ -2560,11 +2567,6 @@ do_ssh2_kex(void)
 		myproposal[PROPOSAL_COMP_ALGS_CTOS] =
 		myproposal[PROPOSAL_COMP_ALGS_STOC] = "none,zlib@openssh.com";
 	}
-	if (options.kex_algorithms != NULL)
-		myproposal[PROPOSAL_KEX_ALGS] = options.kex_algorithms;
-
-	myproposal[PROPOSAL_KEX_ALGS] = compat_kex_proposal(
-	    myproposal[PROPOSAL_KEX_ALGS]);
 
 	if (options.rekey_limit || options.rekey_interval)
 		packet_set_rekey_limits((u_int32_t)options.rekey_limit,

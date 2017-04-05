@@ -1,4 +1,4 @@
-/* $OpenBSD: authfile.c,v 1.111 2015/02/23 16:55:51 djm Exp $ */
+/* $OpenBSD: authfile.c,v 1.116 2015/07/09 09:49:46 markus Exp $ */
 /*
  * Copyright (c) 2000, 2013 Markus Friedl.  All rights reserved.
  *
@@ -39,13 +39,13 @@
 #include <limits.h>
 
 #include "cipher.h"
-#include "key.h"
 #include "ssh.h"
 #include "log.h"
 #include "authfile.h"
 #include "rsa.h"
 #include "misc.h"
 #include "atomicio.h"
+#include "sshkey.h"
 #include "sshbuf.h"
 #include "ssherr.h"
 #include "krl.h"
@@ -186,7 +186,7 @@ sshkey_perm_ok(int fd, const char *filename)
 		error("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
 		error("Permissions 0%3.3o for '%s' are too open.",
 		    (u_int)st.st_mode & 0777, filename);
-		error("It is recommended that your private key files are NOT accessible by others.");
+		error("It is required that your private key files are NOT accessible by others.");
 		error("This private key will be ignored.");
 		return SSH_ERR_KEY_BAD_PERMISSIONS;
 	}
@@ -359,6 +359,8 @@ sshkey_load_public(const char *filename, struct sshkey **keyp, char **commentp)
 	case 0:
 		return r;
 	}
+#else /* WITH_SSH1 */
+	close(fd);
 #endif /* WITH_SSH1 */
 
 	/* try ssh2 public key */
@@ -446,8 +448,8 @@ sshkey_load_private_cert(int type, const char *filename, const char *passphrase,
 	case KEY_RSA:
 	case KEY_DSA:
 	case KEY_ECDSA:
-	case KEY_ED25519:
 #endif /* WITH_OPENSSL */
+	case KEY_ED25519:
 	case KEY_UNSPEC:
 		break;
 	default:
@@ -465,7 +467,7 @@ sshkey_load_private_cert(int type, const char *filename, const char *passphrase,
 		goto out;
 	}
 
-	if ((r = sshkey_to_certified(key, sshkey_cert_is_legacy(cert))) != 0 ||
+	if ((r = sshkey_to_certified(key)) != 0 ||
 	    (r = sshkey_cert_copy(cert, key)) != 0)
 		goto out;
 	r = 0;

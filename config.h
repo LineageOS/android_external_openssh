@@ -1595,7 +1595,7 @@
 /* #undef socklen_t */
 
 #ifndef SSHDIR
-#define SSHDIR "/data/ssh"
+#define SSHDIR "/var/run/ssh"
 #endif
 
 #define _PATH_PRIVSEP_CHROOT_DIR SSHDIR "/empty"
