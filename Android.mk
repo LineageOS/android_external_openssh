@@ -262,6 +262,9 @@ LOCAL_SRC_FILES := \
 LOCAL_MODULE := sshd
 
 LOCAL_CFLAGS += -Wno-unused-parameter -Wno-macro-redefined
+ifneq ($(filter gce_x86 calypso, $(TARGET_DEVICE)),)
+LOCAL_CFLAGS += -DANDROID_GCE $(GCE_VERSION_CFLAGS)
+endif
 
 LOCAL_C_INCLUDES := \
     external/zlib \
