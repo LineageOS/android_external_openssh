@@ -964,9 +964,44 @@ listen_on_addrs(struct listenaddr *la)
 			    ssh_gai_strerror(ret));
 			continue;
 		}
+
+#if defined(ANDROID_GCE) && defined(GCE_PLATFORM_SDK_VERSION) && GCE_PLATFORM_SDK_VERSION >= 28
+		/*
+		 * Android GCE specific, bug 67899876
+		 * Open socket in external namespace, making it possible to serve SSH
+		 * connections regardless of internal interface states.
+		 */
+		int outerfd = open("/var/run/netns/outer.net", O_RDONLY);
+		int androidfd = open("/var/run/netns/android.net", O_RDONLY);
+		if (outerfd > 0 && androidfd > 0) {
+			if (setns(outerfd, 0) != 0) {
+				fprintf(stderr, "Could not set netns: %s\n",
+					strerror(errno));
+				exit(1);
+			}
+		}
+#endif
+
 		/* Create socket for listening. */
 		listen_sock = socket(ai->ai_family, ai->ai_socktype,
 		    ai->ai_protocol);
+
+#if defined(ANDROID_GCE) && defined(GCE_PLATFORM_SDK_VERSION) && GCE_PLATFORM_SDK_VERSION >= 28
+		if (androidfd > 0) {
+			if (setns(androidfd, 0) != 0) {
+				fprintf(stderr, "Could not set netns: %s\n",
+					strerror(errno));
+				exit(1);
+			}
+		}
+		if (outerfd > 0) {
+			close(outerfd);
+		}
+		if (androidfd > 0) {
+			close(androidfd);
+		}
+#endif
+
 		if (listen_sock < 0) {
 			/* kernel may not support ipv6 */
 			verbose("socket: %.100s", strerror(errno));
