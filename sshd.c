@@ -123,6 +123,11 @@
 #include "version.h"
 #include "ssherr.h"
 
+#if defined(ANDROID_GCE) && defined(GCE_PLATFORM_SDK_VERSION) && GCE_PLATFORM_SDK_VERSION >= 28
+#define GNU_SOURCE
+#include <sched.h>
+#endif
+
 /* Re-exec fds */
 #define REEXEC_DEVCRYPTO_RESERVED_FD	(STDERR_FILENO + 1)
 #define REEXEC_STARTUP_PIPE_FD		(STDERR_FILENO + 2)
