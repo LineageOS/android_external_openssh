@@ -1,5 +1,26 @@
 LOCAL_PATH:= $(call my-dir)
 
+openssh_common_cflags := \
+    -Wall \
+    -Werror \
+    -Wno-error=implicit-function-declaration \
+    -Wno-pointer-sign \
+    -Wno-sign-compare \
+    -Wno-type-limits \
+    -Wno-unused-parameter \
+    -Wno-unused-variable \
+    -Wno-error \
+
+# Use -Wno-error to allow at least the following warnings:
+# (1) bsd-openpty.c calls to 'ptsname' declared with attribute warning:
+#     ptsname is not thread-safe; use ptsname_r instead [-Werror]
+# (2) external/boringssl/src/include/openssl/opensslfeatures.h:
+#     error: "OPENSSL_NO_BF" redefined [-Werror]
+
+openssh_common_clang_cflags := \
+    -Wno-incompatible-pointer-types \
+    -Wno-macro-redefined \
+
 ###################### libssh ######################
 include $(CLEAR_VARS)
 
@@ -125,7 +146,8 @@ LOCAL_SHARED_LIBRARIES += libssl libcrypto libdl libz
 
 LOCAL_MODULE := libssh
 
-LOCAL_CFLAGS += -O3 -Wno-unused-parameter -Wno-macro-redefined
+LOCAL_CFLAGS += -O3 $(openssh_common_cflags)
+LOCAL_CLANG_CFLAGS += $(openssh_common_clang_cflags)
 
 LOCAL_CFLAGS += -DGCE_PLATFORM_SDK_VERSION=$(PLATFORM_SDK_VERSION)
 ifneq ($(filter gce_x86 gce_x86_64 calypso, $(TARGET_DEVICE)),)
@@ -160,7 +182,8 @@ LOCAL_SRC_FILES := \
 
 LOCAL_MODULE := ssh
 
-LOCAL_CFLAGS += -Wno-unused-parameter -Wno-macro-redefined
+LOCAL_CFLAGS += $(openssh_common_cflags)
+LOCAL_CLANG_CFLAGS += $(openssh_common_clang_cflags)
 
 LOCAL_C_INCLUDES := \
     external/zlib \
@@ -182,7 +205,8 @@ LOCAL_SRC_FILES := \
 
 LOCAL_MODULE := sftp
 
-LOCAL_CFLAGS += -Wno-unused-parameter -Wno-macro-redefined
+LOCAL_CFLAGS += $(openssh_common_cflags)
+LOCAL_CLANG_CFLAGS += $(openssh_common_clang_cflags)
 
 LOCAL_C_INCLUDES := \
     external/zlib \
@@ -204,7 +228,8 @@ LOCAL_SRC_FILES := \
 
 LOCAL_MODULE := scp
 
-LOCAL_CFLAGS += -Wno-unused-parameter -Wno-macro-redefined
+LOCAL_CFLAGS += $(openssh_common_cflags)
+LOCAL_CLANG_CFLAGS += $(openssh_common_clang_cflags)
 
 LOCAL_C_INCLUDES := \
     external/zlib \
@@ -264,7 +289,8 @@ LOCAL_SRC_FILES := \
 
 LOCAL_MODULE := sshd
 
-LOCAL_CFLAGS += -Wno-unused-parameter -Wno-macro-redefined
+LOCAL_CFLAGS += $(openssh_common_cflags)
+LOCAL_CLANG_CFLAGS += $(openssh_common_clang_cflags)
 ifneq ($(filter gce_x86 gce_x86_64 calypso, $(TARGET_DEVICE)),)
 LOCAL_CFLAGS += -DANDROID_GCE $(GCE_VERSION_CFLAGS)
 endif
@@ -289,7 +315,8 @@ LOCAL_SRC_FILES := \
 
 LOCAL_MODULE := ssh-keygen
 
-LOCAL_CFLAGS += -Wno-unused-parameter -Wno-macro-redefined
+LOCAL_CFLAGS += $(openssh_common_cflags)
+LOCAL_CLANG_CFLAGS += $(openssh_common_clang_cflags)
 
 LOCAL_C_INCLUDES := \
     external/zlib \
