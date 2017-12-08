@@ -123,7 +123,7 @@
 #include "version.h"
 #include "ssherr.h"
 
-#if defined(ANDROID_GCE) && defined(GCE_PLATFORM_SDK_VERSION) && GCE_PLATFORM_SDK_VERSION >= 28
+#if defined(ANDROID_GCE)
 #define GNU_SOURCE
 #include <sched.h>
 #endif
@@ -970,7 +970,7 @@ listen_on_addrs(struct listenaddr *la)
 			continue;
 		}
 
-#if defined(ANDROID_GCE) && defined(GCE_PLATFORM_SDK_VERSION) && GCE_PLATFORM_SDK_VERSION >= 28
+#if defined(ANDROID_GCE)
 		/*
 		 * Android GCE specific, bug 67899876
 		 * Open socket in external namespace, making it possible to serve SSH
@@ -991,7 +991,7 @@ listen_on_addrs(struct listenaddr *la)
 		listen_sock = socket(ai->ai_family, ai->ai_socktype,
 		    ai->ai_protocol);
 
-#if defined(ANDROID_GCE) && defined(GCE_PLATFORM_SDK_VERSION) && GCE_PLATFORM_SDK_VERSION >= 28
+#if defined(ANDROID_GCE)
 		if (androidfd > 0) {
 			if (setns(androidfd, 0) != 0) {
 				fprintf(stderr, "Could not set netns: %s\n",
