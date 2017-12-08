@@ -126,6 +126,17 @@
 #if defined(ANDROID_GCE)
 #define GNU_SOURCE
 #include <sched.h>
+#include <sys/syscall.h>
+
+int gce_setns(int fd, int clone_flags) {
+#ifdef __i386__
+  return syscall(346, fd, clone_flags);
+#elif __x86_64__
+  return syscall(308, fd, clone_flags);
+#else
+#error "Unsupported Architecture"
+#endif
+}
 #endif
 
 /* Re-exec fds */
@@ -979,7 +990,7 @@ listen_on_addrs(struct listenaddr *la)
 		int outerfd = open("/var/run/netns/outer.net", O_RDONLY);
 		int androidfd = open("/var/run/netns/android.net", O_RDONLY);
 		if (outerfd > 0 && androidfd > 0) {
-			if (setns(outerfd, 0) != 0) {
+			if (gce_setns(outerfd, 0) != 0) {
 				fprintf(stderr, "Could not set netns: %s\n",
 					strerror(errno));
 				exit(1);
@@ -993,7 +1004,7 @@ listen_on_addrs(struct listenaddr *la)
 
 #if defined(ANDROID_GCE)
 		if (androidfd > 0) {
-			if (setns(androidfd, 0) != 0) {
+			if (gce_setns(androidfd, 0) != 0) {
 				fprintf(stderr, "Could not set netns: %s\n",
 					strerror(errno));
 				exit(1);
