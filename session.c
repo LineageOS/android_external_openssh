@@ -1232,7 +1232,14 @@ do_rc_files(struct ssh *ssh, Session *s, const char *shell)
 		if (debug_flag)
 			fprintf(stderr, "Running %s %s\n", _PATH_BSHELL,
 			    _PATH_SSH_SYSTEM_RC);
+#ifdef __ANDROID__
+		/* _PATH_BSHELL is not a compile-time constant on Android. */
+		snprintf(cmd, sizeof cmd, "%s %s", _PATH_BSHELL,
+			 _PATH_SSH_SYSTEM_RC);
+		f = popen(cmd, "w");
+#else
 		f = popen(_PATH_BSHELL " " _PATH_SSH_SYSTEM_RC, "w");
+#endif
 		if (f) {
 			if (do_xauth)
 				fprintf(f, "%s %s\n", s->auth_proto,
