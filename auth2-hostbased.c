@@ -1,4 +1,4 @@
-/* $OpenBSD: auth2-hostbased.c,v 1.24 2015/01/28 22:36:00 djm Exp $ */
+/* $OpenBSD: auth2-hostbased.c,v 1.26 2016/03/07 19:02:43 djm Exp $ */
 /*
  * Copyright (c) 2000 Markus Friedl.  All rights reserved.
  *
@@ -109,8 +109,7 @@ userauth_hostbased(Authctxt *authctxt)
 		goto done;
 	}
 	if (match_pattern_list(sshkey_ssh_name(key),
-	    options.hostbased_key_types,
-	    strlen(options.hostbased_key_types), 0) != 1) {
+	    options.hostbased_key_types, 0) != 1) {
 		logit("%s: key type %s not in HostbasedAcceptedKeyTypes",
 		    __func__, sshkey_type(key));
 		goto done;
@@ -161,6 +160,7 @@ int
 hostbased_key_allowed(struct passwd *pw, const char *cuser, char *chost,
     Key *key)
 {
+	struct ssh *ssh = active_state; /* XXX */
 	const char *resolvedname, *ipaddr, *lookup, *reason;
 	HostStatus host_status;
 	int len;
@@ -169,8 +169,8 @@ hostbased_key_allowed(struct passwd *pw, const char *cuser, char *chost,
 	if (auth_key_is_revoked(key))
 		return 0;
 
-	resolvedname = get_canonical_hostname(options.use_dns);
-	ipaddr = get_remote_ipaddr();
+	resolvedname = auth_get_canonical_hostname(ssh, options.use_dns);
+	ipaddr = ssh_remote_ipaddr(ssh);
 
 	debug2("%s: chost %s resolvedname %s ipaddr %s", __func__,
 	    chost, resolvedname, ipaddr);

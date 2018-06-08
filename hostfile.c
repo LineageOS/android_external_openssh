@@ -1,4 +1,4 @@
-/* $OpenBSD: hostfile.c,v 1.64 2015/02/16 22:08:57 djm Exp $ */
+/* $OpenBSD: hostfile.c,v 1.68 2017/03/10 04:26:06 djm Exp $ */
 /*
  * Author: Tatu Ylonen <ylo@cs.hut.fi>
  * Copyright (c) 1995 Tatu Ylonen <ylo@cs.hut.fi>, Espoo, Finland
@@ -123,14 +123,13 @@ host_hash(const char *host, const char *name_from_hostfile, u_int src_len)
 	u_char salt[256], result[256];
 	char uu_salt[512], uu_result[512];
 	static char encoded[1024];
-	u_int i, len;
+	u_int len;
 
 	len = ssh_digest_bytes(SSH_DIGEST_SHA1);
 
 	if (name_from_hostfile == NULL) {
 		/* Create new salt */
-		for (i = 0; i < len; i++)
-			salt[i] = arc4random();
+		arc4random_buf(salt, len);
 	} else {
 		/* Extract salt from known host entry */
 		if (extract_salt(name_from_hostfile, src_len, salt,
@@ -242,7 +241,8 @@ record_hostkey(struct hostkey_foreach_line *l, void *_ctx)
 	struct hostkey_entry *tmp;
 
 	if (l->status == HKF_STATUS_INVALID) {
-		error("%s:%ld: parse error in hostkeys file",
+		/* XXX make this verbose() in the future */
+		debug("%s:%ld: parse error in hostkeys file",
 		    l->path, l->linenum);
 		return 0;
 	}
@@ -419,19 +419,24 @@ write_host_entry(FILE *f, const char *host, const char *ip,
     const struct sshkey *key, int store_hash)
 {
 	int r, success = 0;
-	char *hashed_host = NULL;
+	char *hashed_host = NULL, *lhost;
+
+	lhost = xstrdup(host);
+	lowercase(lhost);
 
 	if (store_hash) {
-		if ((hashed_host = host_hash(host, NULL, 0)) == NULL) {
+		if ((hashed_host = host_hash(lhost, NULL, 0)) == NULL) {
 			error("%s: host_hash failed", __func__);
+			free(lhost);
 			return 0;
 		}
 		fprintf(f, "%s ", hashed_host);
 	} else if (ip != NULL)
-		fprintf(f, "%s,%s ", host, ip);
-	else
-		fprintf(f, "%s ", host);
-
+		fprintf(f, "%s,%s ", lhost, ip);
+	else {
+		fprintf(f, "%s ", lhost);
+	}
+	free(lhost);
 	if ((r = sshkey_write(key, f)) == 0)
 		success = 1;
 	else
@@ -662,7 +667,7 @@ match_maybe_hashed(const char *host, const char *names, int *was_hashed)
 		return nlen == strlen(hashed_host) &&
 		    strncmp(hashed_host, names, nlen) == 0;
 	}
-	return match_hostname(host, names, nlen) == 1;
+	return match_hostname(host, names) == 1;
 }
 
 int
@@ -810,7 +815,7 @@ hostkeys_foreach(const char *path, hostkeys_foreach_fn *callback, void *ctx,
 			memcpy(ktype, lineinfo.rawkey, l);
 			ktype[l] = '\0';
 			lineinfo.keytype = sshkey_type_from_name(ktype);
-#ifdef WITH_SSH1
+
 			/*
 			 * Assume RSA1 if the first component is a short
 			 * decimal number.
@@ -818,7 +823,7 @@ hostkeys_foreach(const char *path, hostkeys_foreach_fn *callback, void *ctx,
 			if (lineinfo.keytype == KEY_UNSPEC && l < 8 &&
 			    strspn(ktype, "0123456789") == l)
 				lineinfo.keytype = KEY_RSA1;
-#endif
+
 			/*
 			 * Check that something other than whitespace follows
 			 * the key type. This won't catch all corruption, but

@@ -1,4 +1,4 @@
-/* $OpenBSD: servconf.h,v 1.116 2015/01/13 07:39:19 djm Exp $ */
+/* $OpenBSD: servconf.h,v 1.123 2016/11/30 03:00:05 djm Exp $ */
 
 /*
  * Author: Tatu Ylonen <ylo@cs.hut.fi>
@@ -58,7 +58,9 @@ typedef struct {
 	u_int	num_ports;
 	u_int	ports_from_cmdline;
 	int	ports[MAX_PORTS];	/* Port number to listen on. */
-	char   *listen_addr;		/* Address on which the server listens. */
+	u_int	num_queued_listens;
+	char   **queued_listen_addrs;
+	int    *queued_listen_ports;
 	struct addrinfo *listen_addrs;	/* Addresses on which the server listens. */
 	int     address_family;		/* Address family used by the server. */
 	char   *host_key_files[MAX_HOSTKEYS];	/* Files containing host keys. */
@@ -67,10 +69,8 @@ typedef struct {
 	int     num_host_cert_files;     /* Number of files for host certs. */
 	char   *host_key_agent;		 /* ssh-agent socket for host keys. */
 	char   *pid_file;	/* Where to put our pid */
-	int     server_key_bits;/* Size of the server key. */
 	int     login_grace_time;	/* Disconnect if no auth in this time
 					 * (sec). */
-	int     key_regeneration_time;	/* Server key lifetime (seconds). */
 	int     permit_root_login;	/* PERMIT_*, see above */
 	int     ignore_rhosts;	/* Ignore .rhosts and .shosts. */
 	int     ignore_user_known_hosts;	/* Ignore ~/.ssh/known_hosts
@@ -91,16 +91,13 @@ typedef struct {
 	char   *ciphers;	/* Supported SSH2 ciphers. */
 	char   *macs;		/* Supported SSH2 macs. */
 	char   *kex_algorithms;	/* SSH2 kex methods in order of preference. */
-	int	protocol;	/* Supported protocol versions. */
 	struct ForwardOptions fwd_opts;	/* forwarding options */
 	SyslogFacility log_facility;	/* Facility for system logging. */
 	LogLevel log_level;	/* Level for system logging. */
-	int     rhosts_rsa_authentication;	/* If true, permit rhosts RSA
-						 * authentication. */
 	int     hostbased_authentication;	/* If true, permit ssh2 hostbased auth */
 	int     hostbased_uses_name_from_packet_only; /* experimental */
 	char   *hostbased_key_types;	/* Key types allowed for hostbased */
-	int     rsa_authentication;	/* If true, permit RSA authentication. */
+	char   *hostkeyalgorithms;	/* SSH2 server key types */
 	int     pubkey_authentication;	/* If true, permit ssh2 pubkey authentication. */
 	char   *pubkey_key_types;	/* Key types allowed for public key */
 	int     kerberos_authentication;	/* If true, permit Kerberos
@@ -116,6 +113,7 @@ typedef struct {
 						 * authenticated with Kerberos. */
 	int     gss_authentication;	/* If true, permit GSSAPI authentication */
 	int     gss_cleanup_creds;	/* If true, destroy cred cache on logout */
+	int     gss_strict_acceptor;	/* If true, restrict the GSSAPI acceptor name */
 	int     password_authentication;	/* If true, permit password
 						 * authentication. */
 	int     kbd_interactive_authentication;	/* If true, permit */
@@ -123,11 +121,11 @@ typedef struct {
 	int     permit_empty_passwd;	/* If false, do not permit empty
 					 * passwords. */
 	int     permit_user_env;	/* If true, read ~/.ssh/environment */
-	int     use_login;	/* If true, login(1) is used */
 	int     compression;	/* If true, compression is allowed */
 	int	allow_tcp_forwarding; /* One of FORWARD_* */
 	int	allow_streamlocal_forwarding; /* One of FORWARD_* */
 	int	allow_agent_forwarding;
+	int	disable_forwarding;
 	u_int num_allow_users;
 	char   *allow_users[MAX_ALLOW_USERS];
 	u_int num_deny_users;
@@ -176,9 +174,11 @@ typedef struct {
 	char   *chroot_directory;
 	char   *revoked_keys_file;
 	char   *trusted_user_ca_keys;
-	char   *authorized_principals_file;
 	char   *authorized_keys_command;
 	char   *authorized_keys_command_user;
+	char   *authorized_principals_file;
+	char   *authorized_principals_command;
+	char   *authorized_principals_command_user;
 
 	int64_t rekey_limit;
 	int	rekey_interval;
@@ -214,9 +214,11 @@ struct connection_info {
 		M_CP_STROPT(banner); \
 		M_CP_STROPT(trusted_user_ca_keys); \
 		M_CP_STROPT(revoked_keys_file); \
-		M_CP_STROPT(authorized_principals_file); \
 		M_CP_STROPT(authorized_keys_command); \
 		M_CP_STROPT(authorized_keys_command_user); \
+		M_CP_STROPT(authorized_principals_file); \
+		M_CP_STROPT(authorized_principals_command); \
+		M_CP_STROPT(authorized_principals_command_user); \
 		M_CP_STROPT(hostbased_key_types); \
 		M_CP_STROPT(pubkey_key_types); \
 		M_CP_STRARRAYOPT(authorized_keys_files, num_authkeys_files); \

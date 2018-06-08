@@ -1,6 +1,6 @@
-/* $OpenBSD: version.h,v 1.72 2015/03/04 18:53:53 djm Exp $ */
+/* $OpenBSD: version.h,v 1.79 2017/03/20 01:18:59 djm Exp $ */
 
-#define SSH_VERSION	"OpenSSH_6.8"
+#define SSH_VERSION	"OpenSSH_7.5"
 
 #define SSH_PORTABLE	"p1"
 #define SSH_RELEASE	SSH_VERSION SSH_PORTABLE

@@ -1,5 +1,26 @@
 LOCAL_PATH:= $(call my-dir)
 
+openssh_common_cflags := \
+    -Wall \
+    -Werror \
+    -Wno-error=implicit-function-declaration \
+    -Wno-pointer-sign \
+    -Wno-sign-compare \
+    -Wno-type-limits \
+    -Wno-unused-parameter \
+    -Wno-unused-variable \
+    -Wno-error \
+
+# Use -Wno-error to allow at least the following warnings:
+# (1) bsd-openpty.c calls to 'ptsname' declared with attribute warning:
+#     ptsname is not thread-safe; use ptsname_r instead [-Werror]
+# (2) external/boringssl/src/include/openssl/opensslfeatures.h:
+#     error: "OPENSSL_NO_BF" redefined [-Werror]
+
+openssh_common_clang_cflags := \
+    -Wno-incompatible-pointer-types \
+    -Wno-macro-redefined \
+
 ###################### libssh ######################
 include $(CLEAR_VARS)
 
@@ -86,12 +107,12 @@ LOCAL_SRC_FILES := \
     openbsd-compat/strtonum.c \
     openbsd-compat/timingsafe_bcmp.c \
     openbsd-compat/vis.c \
-    openbsd-compat/xmmap.c \
     packet.c \
+    platform-pledge.c \
+    platform-tracing.c \
     poly1305.c \
     readpass.c \
     rijndael.c \
-    roaming_dummy.c \
     rsa.c \
     sc25519.c \
     smult_curve25519_ref.c \
@@ -109,6 +130,7 @@ LOCAL_SRC_FILES := \
     uidswap.c \
     umac.c \
     umac128.c \
+    utf8.c \
     uuencode.c \
     verify.c \
     xmalloc.c
@@ -122,9 +144,17 @@ LOCAL_SHARED_LIBRARIES += libssl libcrypto libdl libz
 
 LOCAL_MODULE := libssh
 
-LOCAL_CFLAGS+=-O3 -Wno-unused-parameter
+LOCAL_CFLAGS += -O3 $(openssh_common_cflags)
+LOCAL_CLANG_CFLAGS += $(openssh_common_clang_cflags)
 
 LOCAL_CFLAGS += -DGCE_PLATFORM_SDK_VERSION=$(PLATFORM_SDK_VERSION)
+ifneq ($(filter gce_x86 gce_x86_64 calypso, $(TARGET_DEVICE)),)
+LOCAL_CFLAGS += -DANDROID_GCE -DSSHDIR=\"/var/run/ssh\"
+endif
+
+ifneq (,$(SSHDIR))
+LOCAL_CFLAGS += -DSSHDIR=\"$(SSHDIR)\"
+endif
 
 include $(BUILD_SHARED_LIBRARY)
 
@@ -136,13 +166,13 @@ LOCAL_MODULE_TAGS := optional
 
 LOCAL_SRC_FILES := \
     ssh.c readconf.c clientloop.c sshtty.c \
-    sshconnect.c sshconnect1.c sshconnect2.c mux.c \
-    roaming_common.c roaming_client.c
+    sshconnect.c sshconnect1.c sshconnect2.c mux.c
 
 LOCAL_MODULE := ssh
 
 
-LOCAL_CFLAGS += -Wno-unused-parameter
+LOCAL_CFLAGS += $(openssh_common_cflags)
+LOCAL_CLANG_CFLAGS += $(openssh_common_clang_cflags)
 
 LOCAL_C_INCLUDES := \
     external/zlib \
@@ -164,7 +194,8 @@ LOCAL_SRC_FILES := \
 
 LOCAL_MODULE := sftp
 
-LOCAL_CFLAGS += -Wno-unused-parameter
+LOCAL_CFLAGS += $(openssh_common_cflags)
+LOCAL_CLANG_CFLAGS += $(openssh_common_clang_cflags)
 
 LOCAL_C_INCLUDES := \
     external/zlib \
@@ -186,7 +217,8 @@ LOCAL_SRC_FILES := \
 
 LOCAL_MODULE := scp
 
-LOCAL_CFLAGS += -Wno-unused-parameter
+LOCAL_CFLAGS += $(openssh_common_cflags)
+LOCAL_CLANG_CFLAGS += $(openssh_common_clang_cflags)
 
 LOCAL_C_INCLUDES := \
     external/zlib \
@@ -208,18 +240,14 @@ LOCAL_SRC_FILES := \
     audit-linux.c \
     audit.c \
     auth-bsdauth.c \
-    auth-chall.c \
     auth-krb5.c \
     auth-options.c \
     auth-pam.c \
-    auth-rh-rsa.c \
     auth-rhosts.c \
-    auth-rsa.c \
     auth-shadow.c \
     auth-sia.c \
     auth-skey.c \
     auth.c \
-    auth1.c \
     auth2-chall.c \
     auth2-gss.c \
     auth2-hostbased.c \
@@ -238,11 +266,8 @@ LOCAL_SRC_FILES := \
     loginrec.c \
     md5crypt.c \
     monitor.c \
-    monitor_mm.c \
     monitor_wrap.c \
     platform.c \
-    roaming_common.c \
-    roaming_serv.c \
     sandbox-null.c \
     sandbox-rlimit.c \
     sandbox-systrace.c \
@@ -257,7 +282,11 @@ LOCAL_SRC_FILES := \
 
 LOCAL_MODULE := sshd
 
-LOCAL_CFLAGS += -Wno-unused-parameter
+LOCAL_CFLAGS += $(openssh_common_cflags)
+LOCAL_CLANG_CFLAGS += $(openssh_common_clang_cflags)
+ifneq ($(filter gce_x86 gce_x86_64 calypso, $(TARGET_DEVICE)),)
+LOCAL_CFLAGS += -DANDROID_GCE $(GCE_VERSION_CFLAGS)
+endif
 
 LOCAL_C_INCLUDES := \
     external/zlib \
@@ -279,7 +308,8 @@ LOCAL_SRC_FILES := \
 
 LOCAL_MODULE := ssh-keygen
 
-LOCAL_CFLAGS += -Wno-unused-parameter
+LOCAL_CFLAGS += $(openssh_common_cflags)
+LOCAL_CLANG_CFLAGS += $(openssh_common_clang_cflags)
 
 LOCAL_C_INCLUDES := \
     external/zlib \

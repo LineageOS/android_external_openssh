@@ -129,6 +129,9 @@
 /* File names may not contain backslash characters */
 /* #undef FILESYSTEM_NO_BACKSLASH */
 
+#define OPENSSL_NO_BF 1
+#define OPENSSL_NO_CAST 1
+
 /* fsid_t has member val */
 /* #undef FSID_HAS_VAL */
 
@@ -194,7 +197,7 @@
 #define HAVE_ATTRIBUTE__NONNULL__ 1
 
 /* OpenBSD's gcc has sentinel */
-/* #undef HAVE_ATTRIBUTE__SENTINEL__ */
+#define HAVE_ATTRIBUTE__SENTINEL__ 1
 
 /* Define to 1 if you have the `aug_get_machine' function. */
 /* #undef HAVE_AUG_GET_MACHINE */
@@ -972,10 +975,10 @@
 #define HAVE_STRING_H 1
 
 /* Define to 1 if you have the `strlcat' function. */
-/* #undef HAVE_STRLCAT */
+#define HAVE_STRLCAT 1
 
 /* Define to 1 if you have the `strlcpy' function. */
-/* #undef HAVE_STRLCPY */
+#define HAVE_STRLCPY 1
 
 /* Define to 1 if you have the `strmode' function. */
 /* #undef HAVE_STRMODE */
@@ -1595,7 +1598,7 @@
 /* #undef socklen_t */
 
 #ifndef SSHDIR
-#define SSHDIR "/data/ssh"
+#define SSHDIR "/var/run/ssh"
 #endif
 
 #define _PATH_PRIVSEP_CHROOT_DIR SSHDIR "/empty"
