@@ -136,6 +136,8 @@ ifneq (,$(SSHDIR))
 LOCAL_CFLAGS += -DSSHDIR=\"$(SSHDIR)\"
 endif
 
+LOCAL_CFLAGS += -Wno-sign-compare -Wno-error
+
 include $(BUILD_SHARED_LIBRARY)
 
 ###################### ssh ######################
@@ -156,7 +158,7 @@ LOCAL_SRC_FILES := \
 
 LOCAL_MODULE := ssh
 
-LOCAL_CFLAGS += -Wno-unused-parameter -Wno-macro-redefined
+LOCAL_CFLAGS += -Wno-unused-parameter -Wno-macro-redefined -Wno-error
 
 LOCAL_C_INCLUDES := \
     external/zlib \
@@ -263,7 +265,7 @@ LOCAL_SRC_FILES := \
 
 LOCAL_MODULE := sshd
 
-LOCAL_CFLAGS += -Wno-unused-parameter -Wno-macro-redefined
+LOCAL_CFLAGS += -Wno-error -Wno-unused-parameter -Wno-macro-redefined
 
 LOCAL_C_INCLUDES := \
     external/zlib \
