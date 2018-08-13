@@ -134,7 +134,7 @@ bcrypt_pbkdf(const char *pass, size_t passlen, const u_int8_t *salt, size_t salt
 	memcpy(countsalt, salt, saltlen);
 
 	/* collapse password */
-	crypto_hash_sha512(sha2pass, pass, passlen);
+	crypto_hash_sha512(sha2pass, (const unsigned char *)pass, passlen);
 
 	/* generate key, sizeof(out) at a time */
 	for (count = 1; keylen > 0; count++) {

@@ -3549,7 +3549,7 @@ sshkey_private_pem_to_blob(struct sshkey *key, struct sshbuf *blob,
 		r = SSH_ERR_LIBCRYPTO_ERROR;
 		goto out;
 	}
-	if ((blen = BIO_get_mem_data(bio, &bptr)) <= 0) {
+	if ((blen = BIO_get_mem_data(bio, (char **)&bptr)) <= 0) {
 		r = SSH_ERR_INTERNAL_ERROR;
 		goto out;
 	}
