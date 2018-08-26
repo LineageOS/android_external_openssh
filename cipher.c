@@ -83,7 +83,9 @@ struct sshcipher {
 static const struct sshcipher ciphers[] = {
 #ifdef WITH_OPENSSL
 #ifndef OPENSSL_NO_DES
+#if !defined(ANDROID)
 	{ "3des-cbc",		8, 24, 0, 0, CFLAG_CBC, EVP_des_ede3_cbc },
+# endif /* ANDROID */
 #endif
 	{ "aes128-cbc",		16, 16, 0, 0, CFLAG_CBC, EVP_aes_128_cbc },
 	{ "aes192-cbc",		16, 24, 0, 0, CFLAG_CBC, EVP_aes_192_cbc },
@@ -91,7 +93,9 @@ static const struct sshcipher ciphers[] = {
 	{ "rijndael-cbc@lysator.liu.se",
 				16, 32, 0, 0, CFLAG_CBC, EVP_aes_256_cbc },
 	{ "aes128-ctr",		16, 16, 0, 0, 0, EVP_aes_128_ctr },
+#if !defined(ANDROID)
 	{ "aes192-ctr",		16, 24, 0, 0, 0, EVP_aes_192_ctr },
+#endif
 	{ "aes256-ctr",		16, 32, 0, 0, 0, EVP_aes_256_ctr },
 # ifdef OPENSSL_HAVE_EVPGCM
 	{ "aes128-gcm@openssh.com",

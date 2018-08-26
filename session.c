@@ -1052,6 +1052,7 @@ do_setup_env(struct ssh *ssh, Session *s, const char *shell)
 # endif /* HAVE_CYGWIN */
 #endif /* HAVE_LOGIN_CAP */
 
+#ifndef ANDROID
 	if (!options.use_pam) {
 		snprintf(buf, sizeof buf, "%.200s/%.50s",
 		    _PATH_MAILDIR, pw->pw_name);
@@ -1060,6 +1061,7 @@ do_setup_env(struct ssh *ssh, Session *s, const char *shell)
 
 	/* Normal systems set SHELL by default. */
 	child_set_env(&env, &envsize, "SHELL", shell);
+#endif
 
 	if (getenv("TZ"))
 		child_set_env(&env, &envsize, "TZ", getenv("TZ"));
@@ -1381,7 +1383,9 @@ do_setusercontext(struct passwd *pw)
 			perror("initgroups");
 			exit(1);
 		}
+#if !defined(ANDROID)
 		endgrent();
+#endif
 #endif
 
 		platform_setusercontext_post_groups(pw);
@@ -1487,11 +1491,13 @@ child_close_fds(struct ssh *ssh)
 	/* XXX better use close-on-exec? -markus */
 	channel_close_all(ssh);
 
+#if !defined(ANDROID)
 	/*
 	 * Close any extra file descriptors.  Note that there may still be
 	 * descriptors left by system functions.  They will be closed later.
 	 */
 	endpwent();
+#endif
 
 	/*
 	 * Close any extra open file descriptors so that we don't have them
@@ -2716,4 +2722,3 @@ session_get_remote_name_or_ip(struct ssh *ssh, u_int utmp_size, int use_dns)
 		remote = ssh_remote_ipaddr(ssh);
 	return remote;
 }
-

@@ -889,9 +889,14 @@ mm_answer_authpassword(struct ssh *ssh, int sock, struct sshbuf *m)
 		fatal("%s: password authentication not enabled", __func__);
 	if ((r = sshbuf_get_cstring(m, &passwd, &plen)) != 0)
 		fatal("%s: buffer error: %s", __func__, ssh_err(r));
+#if !defined(ANDROID)
 	/* Only authenticate if the context is valid */
 	authenticated = options.password_authentication &&
 	    auth_password(ssh, passwd);
+#else
+	/* no password authentication in Android. */
+	authenticated = 0;
+#endif
 	explicit_bzero(passwd, plen);
 	free(passwd);
 

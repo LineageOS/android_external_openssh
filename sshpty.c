@@ -72,12 +72,22 @@ pty_allocate(int *ptyfd, int *ttyfd, char *namebuf, size_t namebuflen)
 		error("openpty: %.100s", strerror(errno));
 		return 0;
 	}
+#ifdef ANDROID
+	if (ptsname_r(*ptyfd, namebuf, namebuflen)) {
+		fatal("openpty ptsname failed.");
+		close(*ptyfd);
+		*ptyfd = -1;
+		return -1;
+	}
+	return 1;
+#else
 	name = ttyname(*ttyfd);
 	if (!name)
 		fatal("openpty returns device for which ttyname fails.");
 
 	strlcpy(namebuf, name, namebuflen);	/* possible truncation */
 	return 1;
+#endif
 }
 
 /* Releases the tty.  Its ownership is returned to root, and permissions to 0666. */

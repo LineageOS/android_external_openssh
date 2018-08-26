@@ -27,11 +27,24 @@ explicit_bzero(void *p, size_t n)
 
 #else /* HAVE_MEMSET_S */
 
+#if defined(ANDROID) && defined(bzero)
+/* On some Android versions bzero is a macro */
+static void wrapped_bzero(void* dest, size_t sz) {
+  memset(dest, 0, sz);
+}
+
+/*
+ * Indirect bzero through a volatile pointer to hopefully avoid
+ * dead-store optimisation eliminating the call.
+ */
+static void (* volatile ssh_bzero)(void *, size_t) = wrapped_bzero;
+#else
 /*
  * Indirect bzero through a volatile pointer to hopefully avoid
  * dead-store optimisation eliminating the call.
  */
 static void (* volatile ssh_bzero)(void *, size_t) = bzero;
+#endif
 
 void
 explicit_bzero(void *p, size_t n)

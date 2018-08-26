@@ -66,8 +66,11 @@ userauth_none(struct ssh *ssh)
 	none_enabled = 0;
 	if ((r = sshpkt_get_end(ssh)) != 0)
 		fatal("%s: %s", __func__, ssh_err(r));
+#if !defined(ANDROID)
+	/* no password authentication in Android. */
 	if (options.permit_empty_passwd && options.password_authentication)
 		return (PRIVSEP(auth_password(ssh, "")));
+#endif
 	return (0);
 }
 
