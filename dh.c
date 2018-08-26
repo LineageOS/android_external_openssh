@@ -275,7 +275,12 @@ dh_gen_key(DH *dh, int need)
 	 * Pollard Rho, Big step/Little Step attacks are O(sqrt(n)),
 	 * so double requested need here.
 	 */
+#if !defined(ANDROID) || !defined(OPENSSL_IS_BORINGSSL)
+	/* BoringSSL renamed |length| to |priv_length| to better reflect its
+	 * actual use. Also, BoringSSL recognises common groups and chooses the
+	 * length of the private exponent accoringly. */
 	dh->length = MINIMUM(need * 2, pbits - 1);
+#endif
 	if (DH_generate_key(dh) == 0 ||
 	    !dh_pub_is_valid(dh, dh->pub_key)) {
 		BN_clear_free(dh->priv_key);

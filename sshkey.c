@@ -3759,7 +3759,9 @@ translate_libcrypto_error(unsigned long pem_err)
 	case ERR_LIB_PEM:
 		switch (pem_reason) {
 		case PEM_R_BAD_PASSWORD_READ:
+#if !defined(ANDROID) || defined(PEM_R_PROBLEMS_GETTING_PASSWORD)
 		case PEM_R_PROBLEMS_GETTING_PASSWORD:
+#endif
 		case PEM_R_BAD_DECRYPT:
 			return SSH_ERR_KEY_WRONG_PASSPHRASE;
 		default:
@@ -3767,9 +3769,13 @@ translate_libcrypto_error(unsigned long pem_err)
 		}
 	case ERR_LIB_EVP:
 		switch (pem_reason) {
+#if !defined(ANDROID) || defined(EVP_R_BAD_DECRYPT)
 		case EVP_R_BAD_DECRYPT:
 			return SSH_ERR_KEY_WRONG_PASSPHRASE;
+#endif
+#if !defined(ANDROID) || defined(EVP_R_BN_DECODE_ERROR)
 		case EVP_R_BN_DECODE_ERROR:
+#endif
 		case EVP_R_DECODE_ERROR:
 #ifdef EVP_R_PRIVATE_KEY_DECODE_ERROR
 		case EVP_R_PRIVATE_KEY_DECODE_ERROR:
