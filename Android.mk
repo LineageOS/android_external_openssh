@@ -294,7 +294,15 @@ LOCAL_C_INCLUDES := \
     external/openssh/openbsd-compat
 
 LOCAL_SHARED_LIBRARIES += libssh libssl libcrypto libdl libz libcutils
+
+# libc.bootstrap is available/required since Q
+ifneq ($(PLATFORM_VERSION_CODENAME)|$(call math_lt,$(PLATFORM_SDK_VERSION),29),REL|true)
+# This filter is for old branches that does not have math_lt macro
+# This is equivalently PLATFORM_SDK_VERSION > 27
+ifeq ($(filter 14 15 16 17 18 19 20 21 22 23 24 25 26 27,$(PLATFORM_SDK_VERSION)),)
 LOCAL_SHARED_LIBRARIES += libc.bootstrap
+endif
+endif
 
 include $(BUILD_EXECUTABLE)
 
