@@ -301,6 +301,7 @@ LOCAL_C_INCLUDES := \
     external/openssh/openbsd-compat
 
 LOCAL_SHARED_LIBRARIES += libssh libssl libcrypto libdl libz libcutils
+LOCAL_SHARED_LIBRARIES += libc.bootstrap
 
 include $(BUILD_EXECUTABLE)
 
