@@ -125,7 +125,13 @@ LOCAL_SHARED_LIBRARIES += libssl libcrypto libdl libz
 
 LOCAL_MODULE := libssh
 
-LOCAL_CFLAGS += -O3 -Wno-unused-parameter -Wno-macro-redefined
+LOCAL_CFLAGS += \
+    -O3 \
+    -Wno-macro-redefined \
+    -Wno-pointer-sign \
+    -Wno-sign-compare \
+    -Wno-tautological-compare \
+    -Wno-unused-parameter
 
 LOCAL_CFLAGS += -DGCE_PLATFORM_SDK_VERSION=$(PLATFORM_SDK_VERSION)
 ifneq ($(filter gce_x86 calypso, $(TARGET_DEVICE)),)
@@ -156,7 +162,11 @@ LOCAL_SRC_FILES := \
 
 LOCAL_MODULE := ssh
 
-LOCAL_CFLAGS += -Wno-unused-parameter -Wno-macro-redefined
+LOCAL_CFLAGS += \
+    -Wno-macro-redefined \
+    -Wno-pointer-sign \
+    -Wno-sign-compare \
+    -Wno-unused-parameter
 
 LOCAL_C_INCLUDES := \
     external/zlib \
@@ -260,7 +270,12 @@ LOCAL_SRC_FILES := \
 
 LOCAL_MODULE := sshd
 
-LOCAL_CFLAGS += -Wno-unused-parameter -Wno-macro-redefined
+LOCAL_CFLAGS += \
+    -Wno-implicit-function-declaration \
+    -Wno-macro-redefined \
+    -Wno-pointer-sign \
+    -Wno-unused-parameter \
+    -Wno-unused-variable
 
 LOCAL_C_INCLUDES := \
     external/zlib \
