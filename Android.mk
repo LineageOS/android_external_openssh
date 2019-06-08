@@ -66,6 +66,7 @@ LOCAL_SRC_FILES := \
     openbsd-compat/fmt_scaled.c \
     openbsd-compat/getopt_long.c \
     openbsd-compat/glob.c \
+    openbsd-compat/boringssl-api-compat.c \
     openbsd-compat/openssl-compat.c \
     openbsd-compat/port-linux.c \
     openbsd-compat/port-net.c \

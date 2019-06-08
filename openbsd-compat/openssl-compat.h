@@ -229,5 +229,9 @@ EVP_MD_CTX *EVP_MD_CTX_new(void);
 void EVP_MD_CTX_free(EVP_MD_CTX *ctx);
 #endif /* HAVE_EVP_MD_CTX_free */
 
+#ifndef HAVE_EVP_PKEY_BASE_ID
+int EVP_PKEY_base_id(EVP_PKEY *pkey);
+#endif /* HAVE_EVP_PKEY_BASE_ID */
+
 #endif /* WITH_OPENSSL */
 #endif /* _OPENSSL_COMPAT_H */
