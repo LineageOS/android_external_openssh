@@ -37,13 +37,12 @@ LOCAL_SRC_FILES := \
     hostfile.c \
     kex.c \
     kexc25519.c \
-    kexc25519c.c \
     kexdh.c \
-    kexdhc.c \
     kexecdh.c \
-    kexecdhc.c \
+    kexgen.c \
     kexgex.c \
     kexgexc.c \
+    kexsntrup4591761x25519.c \
     krl.c \
     log.c \
     mac.c \
@@ -53,7 +52,6 @@ LOCAL_SRC_FILES := \
     monitor_fdpass.c \
     msg.c \
     nchan.c \
-    opacket.c \
     openbsd-compat/bcrypt_pbkdf.c \
     openbsd-compat/bindresvport.c \
     openbsd-compat/blowfish.c \
@@ -102,6 +100,7 @@ LOCAL_SRC_FILES := \
     sshkey-xmss.c \
     ssh-rsa.c \
     ssh-xmss.c \
+    sntrup4591761.c \
     ttymodes.c \
     uidswap.c \
     umac128.c \
@@ -240,9 +239,6 @@ LOCAL_SRC_FILES := \
     groupaccess.c \
     gss-serv-krb5.c \
     gss-serv.c \
-    kexc25519s.c \
-    kexdhs.c \
-    kexecdhs.c \
     kexgexs.c \
     loginrec.c \
     md5crypt.c \
