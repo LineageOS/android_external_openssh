@@ -1,4 +1,4 @@
-/* $OpenBSD: groupaccess.c,v 1.16 2015/05/04 06:10:48 djm Exp $ */
+/* $OpenBSD: groupaccess.c,v 1.17 2019/03/06 22:14:23 dtucker Exp $ */
 /*
  * Copyright (c) 2001 Kevin Steves.  All rights reserved.
  *
@@ -54,7 +54,7 @@ ga_init(const char *user, gid_t base)
 #else
 
 	gid_t *groups_bygid;
-	int i, j;
+	int i, j, retry = 0;
 	struct group *gr;
 
 	if (ngroups > 0)
@@ -66,10 +66,14 @@ ga_init(const char *user, gid_t base)
 #endif
 
 	groups_bygid = xcalloc(ngroups, sizeof(*groups_bygid));
+	while (getgrouplist(user, base, groups_bygid, &ngroups) == -1) {
+		if (retry++ > 0)
+			fatal("getgrouplist: groups list too small");
+		groups_bygid = xreallocarray(groups_bygid, ngroups,
+		    sizeof(*groups_bygid));
+	}
 	groups_byname = xcalloc(ngroups, sizeof(*groups_byname));
 
-	if (getgrouplist(user, base, groups_bygid, &ngroups) == -1)
-		logit("getgrouplist: groups list too small");
 	for (i = 0, j = 0; i < ngroups; i++)
 		if ((gr = getgrgid(groups_bygid[i])) != NULL)
 			groups_byname[j++] = xstrdup(gr->gr_name);
@@ -104,7 +108,8 @@ ga_match_pattern_list(const char *group_pattern)
 	int i, found = 0;
 
 	for (i = 0; i < ngroups; i++) {
-		switch (match_pattern_list(groups_byname[i], group_pattern, 0)) {
+		switch (match_usergroup_pattern_list(groups_byname[i],
+		    group_pattern)) {
 		case -1:
 			return 0;	/* Negated match wins */
 		case 0:
@@ -129,5 +134,6 @@ ga_free(void)
 			free(groups_byname[i]);
 		ngroups = 0;
 		free(groups_byname);
+		groups_byname = NULL;
 	}
 }
