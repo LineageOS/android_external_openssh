@@ -19,7 +19,7 @@ AC_CONFIG_SRCDIR([ssh.c])
 AC_LANG([C])
 
 AC_CONFIG_HEADER([config.h])
-AC_PROG_CC
+AC_PROG_CC([cc gcc])
 AC_CANONICAL_HOST
 AC_C_BIGENDIAN
 
@@ -164,15 +164,6 @@ if test "$GCC" = "yes" || test "$GCC" = "egcs"; then
 	OSSH_CHECK_CFLAG_COMPILE([-Wunused-result], [-Wno-unused-result])
 	OSSH_CHECK_CFLAG_COMPILE([-fno-strict-aliasing])
     if test "x$use_toolchain_hardening" = "x1"; then
-	# Cygwin GCC 7.x allows thunking on the CLI, but produces non-working
-	# code.  Unfortunately you only notice this at link time.
-	case "$host" in
-	*-*-cygwin*) ;;
-	*)
-	    OSSH_CHECK_CFLAG_COMPILE([-mfunction-return=thunk]) # gcc
-	    OSSH_CHECK_CFLAG_COMPILE([-mindirect-branch=thunk]) # gcc
-	    ;;
-	esac
 	OSSH_CHECK_CFLAG_COMPILE([-mretpoline]) # clang
 	OSSH_CHECK_LDFLAG_LINK([-Wl,-z,retpolineplt])
 	OSSH_CHECK_CFLAG_COMPILE([-D_FORTIFY_SOURCE=2])
@@ -294,10 +285,11 @@ AC_ARG_WITH([rpath],
 	[  --without-rpath         Disable auto-added -R linker paths],
 	[
 		if test "x$withval" = "xno" ; then
-			need_dash_r=""
-		fi
-		if test "x$withval" = "xyes" ; then
-			need_dash_r=1
+			rpath_opt=""
+		elif test "x$withval" = "xyes" ; then
+			rpath_opt="-R"
+		else
+			rpath_opt="$withval"
 		fi
 	]
 )
@@ -920,7 +912,7 @@ mips-sony-bsd|mips-sony-newsos4)
 *-*-netbsd*)
 	check_for_libcrypt_before=1
 	if test "x$withval" != "xno" ; then
-		need_dash_r=1
+		rpath_opt="-R"
 	fi
 	CPPFLAGS="$CPPFLAGS -D_OPENBSD_SOURCE"
 	AC_DEFINE([SSH_TUN_FREEBSD], [1], [Open tunnel devices the FreeBSD way])
@@ -971,7 +963,7 @@ mips-sony-bsd|mips-sony-newsos4)
 	;;
 *-*-solaris*)
 	if test "x$withval" != "xno" ; then
-		need_dash_r=1
+		rpath_opt="-R"
 	fi
 	AC_DEFINE([PAM_SUN_CODEBASE])
 	AC_DEFINE([LOGIN_NEEDS_UTMPX])
@@ -1272,14 +1264,14 @@ AC_ARG_WITH([zlib],
 		AC_MSG_ERROR([*** zlib is required ***])
 	  elif test "x$withval" != "xyes"; then
 		if test -d "$withval/lib"; then
-			if test -n "${need_dash_r}"; then
-				LDFLAGS="-L${withval}/lib -R${withval}/lib ${LDFLAGS}"
+			if test -n "${rpath_opt}"; then
+				LDFLAGS="-L${withval}/lib ${rpath_opt}${withval}/lib ${LDFLAGS}"
 			else
 				LDFLAGS="-L${withval}/lib ${LDFLAGS}"
 			fi
 		else
-			if test -n "${need_dash_r}"; then
-				LDFLAGS="-L${withval} -R${withval} ${LDFLAGS}"
+			if test -n "${rpath_opt}"; then
+				LDFLAGS="-L${withval} ${rpath_opt}${withval} ${LDFLAGS}"
 			else
 				LDFLAGS="-L${withval} ${LDFLAGS}"
 			fi
@@ -1299,8 +1291,8 @@ AC_CHECK_LIB([z], [deflate], ,
 		saved_LDFLAGS="$LDFLAGS"
 		save_LIBS="$LIBS"
 		dnl Check default zlib install dir
-		if test -n "${need_dash_r}"; then
-			LDFLAGS="-L/usr/local/lib -R/usr/local/lib ${saved_LDFLAGS}"
+		if test -n "${rpath_opt}"; then
+			LDFLAGS="-L/usr/local/lib ${rpath_opt}/usr/local/lib ${saved_LDFLAGS}"
 		else
 			LDFLAGS="-L/usr/local/lib ${saved_LDFLAGS}"
 		fi
@@ -1567,8 +1559,8 @@ AC_ARG_WITH([libedit],
 			fi
 		else
 			CPPFLAGS="$CPPFLAGS -I${withval}/include"
-			if test -n "${need_dash_r}"; then
-				LDFLAGS="-L${withval}/lib -R${withval}/lib ${LDFLAGS}"
+			if test -n "${rpath_opt}"; then
+				LDFLAGS="-L${withval}/lib ${rpath_opt}${withval}/lib ${LDFLAGS}"
 			else
 				LDFLAGS="-L${withval}/lib ${LDFLAGS}"
 			fi
@@ -1728,7 +1720,9 @@ AC_CHECK_FUNCS([ \
 	errx \
 	explicit_bzero \
 	fchmod \
+	fchmodat \
 	fchown \
+	fchownat \
 	flock \
 	freeaddrinfo \
 	freezero \
@@ -1821,6 +1815,7 @@ AC_CHECK_FUNCS([ \
 	truncate \
 	unsetenv \
 	updwtmpx \
+	utimensat \
 	user_from_uid \
 	usleep \
 	vasprintf \
@@ -2105,6 +2100,29 @@ if test "x$ac_cv_func_snprintf" = "xyes" ; then
 			AC_DEFINE([BROKEN_SNPRINTF], [1],
 				[Define if your snprintf is busted])
 			AC_MSG_WARN([****** Your snprintf() function is broken, complain to your vendor])
+		],
+		[ AC_MSG_WARN([cross compiling: Assuming working snprintf()]) ]
+	)
+fi
+
+if test "x$ac_cv_func_snprintf" = "xyes" ; then
+	AC_MSG_CHECKING([whether snprintf understands %zu])
+	AC_RUN_IFELSE(
+		[AC_LANG_PROGRAM([[
+#include <sys/types.h>
+#include <stdio.h>
+		]],
+		[[
+	size_t a = 1, b = 2;
+	char z[128];
+	snprintf(z, sizeof z, "%zu%zu", a, b);
+	exit(strcmp(z, "12"));
+		]])],
+		[AC_MSG_RESULT([yes])],
+		[
+			AC_MSG_RESULT([no])
+			AC_DEFINE([BROKEN_SNPRINTF], [1],
+				[snprintf does not understand %zu])
 		],
 		[ AC_MSG_WARN([cross compiling: Assuming working snprintf()]) ]
 	)
@@ -2462,20 +2480,20 @@ AC_ARG_WITH([ssl-dir],
 				./*|../*)	withval="`pwd`/$withval"
 			esac
 			if test -d "$withval/lib"; then
-				if test -n "${need_dash_r}"; then
-					LDFLAGS="-L${withval}/lib -R${withval}/lib ${LDFLAGS}"
+				if test -n "${rpath_opt}"; then
+					LDFLAGS="-L${withval}/lib ${rpath_opt}${withval}/lib ${LDFLAGS}"
 				else
 					LDFLAGS="-L${withval}/lib ${LDFLAGS}"
 				fi
 			elif test -d "$withval/lib64"; then
-				if test -n "${need_dash_r}"; then
-					LDFLAGS="-L${withval}/lib64 -R${withval}/lib64 ${LDFLAGS}"
+				if test -n "${rpath_opt}"; then
+					LDFLAGS="-L${withval}/lib64 ${rpath_opt}${withval}/lib64 ${LDFLAGS}"
 				else
 					LDFLAGS="-L${withval}/lib64 ${LDFLAGS}"
 				fi
 			else
-				if test -n "${need_dash_r}"; then
-					LDFLAGS="-L${withval} -R${withval} ${LDFLAGS}"
+				if test -n "${rpath_opt}"; then
+					LDFLAGS="-L${withval} ${rpath_opt}${withval} ${LDFLAGS}"
 				else
 					LDFLAGS="-L${withval} ${LDFLAGS}"
 				fi
@@ -2513,26 +2531,10 @@ AC_ARG_WITH([ssl-engine],
 
 if test "x$openssl" = "xyes" ; then
 	LIBS="-lcrypto $LIBS"
-	AC_TRY_LINK_FUNC([RAND_add], [AC_DEFINE([HAVE_OPENSSL], [1],
-		[Define if your ssl headers are included
-		with #include <openssl/header.h>])],
-		[
-			dnl Check default openssl install dir
-			if test -n "${need_dash_r}"; then
-				LDFLAGS="-L/usr/local/ssl/lib -R/usr/local/ssl/lib ${saved_LDFLAGS}"
-			else
-				LDFLAGS="-L/usr/local/ssl/lib ${saved_LDFLAGS}"
-			fi
-			CPPFLAGS="-I/usr/local/ssl/include ${saved_CPPFLAGS}"
-			AC_CHECK_HEADER([openssl/opensslv.h], ,
-			    [AC_MSG_ERROR([*** OpenSSL headers missing - please install first or check config.log ***])])
-			AC_TRY_LINK_FUNC([RAND_add], [AC_DEFINE([HAVE_OPENSSL])],
-				[
-					AC_MSG_ERROR([*** Can't find recent OpenSSL libcrypto (see config.log for details) ***])
-				]
-			)
-		]
-	)
+	AC_TRY_LINK_FUNC([RAND_add], ,
+	    [AC_MSG_ERROR([*** working libcrypto not found, check config.log])])
+	AC_CHECK_HEADER([openssl/opensslv.h], ,
+	    [AC_MSG_ERROR([*** OpenSSL headers missing - please install first or check config.log ***])])
 
 	# Determine OpenSSL header version
 	AC_MSG_CHECKING([OpenSSL header version])
@@ -2571,6 +2573,9 @@ if test "x$openssl" = "xyes" ; then
 		]
 	)
 
+	# Determining OpenSSL library version is version dependent.
+	AC_CHECK_FUNCS([OpenSSL_version OpenSSL_version_num])
+
 	# Determine OpenSSL library version
 	AC_MSG_CHECKING([OpenSSL library version])
 	AC_RUN_IFELSE(
@@ -2587,9 +2592,18 @@ if test "x$openssl" = "xyes" ; then
 		fd = fopen(DATA,"w");
 		if(fd == NULL)
 			exit(1);
-
-		if ((rc = fprintf(fd, "%08lx (%s)\n", (unsigned long)SSLeay(),
-		    SSLeay_version(SSLEAY_VERSION))) < 0)
+#ifndef OPENSSL_VERSION
+# define OPENSSL_VERSION SSLEAY_VERSION
+#endif
+#ifndef HAVE_OPENSSL_VERSION
+# define OpenSSL_version	SSLeay_version
+#endif
+#ifndef HAVE_OPENSSL_VERSION_NUM
+# define OpenSSL_version_num	SSLeay
+#endif
+		if ((rc = fprintf(fd, "%08lx (%s)\n",
+		    (unsigned long)OpenSSL_version_num(),
+		    OpenSSL_version(OPENSSL_VERSION))) < 0)
 			exit(1);
 
 		exit(0);
@@ -2598,14 +2612,20 @@ if test "x$openssl" = "xyes" ; then
 			ssl_library_ver=`cat conftest.ssllibver`
 			# Check version is supported.
 			case "$ssl_library_ver" in
-				10000*|0*)
-					AC_MSG_ERROR([OpenSSL >= 1.0.1 required (have "$ssl_library_ver")])
-			                ;;
-				100*)   ;; # 1.0.x
-				200*)   ;; # LibreSSL
-			        *)
-					AC_MSG_ERROR([OpenSSL >= 1.1.0 is not yet supported (have "$ssl_library_ver")])
-			                ;;
+			10000*|0*)
+				AC_MSG_ERROR([OpenSSL >= 1.0.1 required (have "$ssl_library_ver")])
+		                ;;
+			100*)   ;; # 1.0.x
+			101000[[0123456]]*)
+				# https://github.com/openssl/openssl/pull/4613
+				AC_MSG_ERROR([OpenSSL 1.1.x versions prior to 1.1.0g have a bug that breaks their use with OpenSSH (have "$ssl_library_ver")])
+				;;
+			101*)   ;; # 1.1.x
+			200*)   ;; # LibreSSL
+			300*)   ;; # OpenSSL development branch.
+		        *)
+				AC_MSG_ERROR([Unknown/unsupported OpenSSL version ("$ssl_library_ver")])
+		                ;;
 			esac
 			AC_MSG_RESULT([$ssl_library_ver])
 		],
@@ -2626,7 +2646,10 @@ if test "x$openssl" = "xyes" ; then
 	#include <openssl/opensslv.h>
 	#include <openssl/crypto.h>
 		]], [[
-		exit(SSLeay() == OPENSSL_VERSION_NUMBER ? 0 : 1);
+#ifndef HAVE_OPENSSL_VERSION_NUM
+# define OpenSSL_version_num	SSLeay
+#endif
+		exit(OpenSSL_version_num() == OPENSSL_VERSION_NUMBER ? 0 : 1);
 		]])],
 		[
 			AC_MSG_RESULT([yes])
@@ -2653,8 +2676,8 @@ if test "x$openssl" = "xyes" ; then
 
 	AC_MSG_CHECKING([if programs using OpenSSL functions will link])
 	AC_LINK_IFELSE(
-		[AC_LANG_PROGRAM([[ #include <openssl/evp.h> ]],
-		[[ SSLeay_add_all_algorithms(); ]])],
+		[AC_LANG_PROGRAM([[ #include <openssl/err.h> ]],
+		[[ ERR_load_crypto_strings(); ]])],
 		[
 			AC_MSG_RESULT([yes])
 		],
@@ -2664,8 +2687,8 @@ if test "x$openssl" = "xyes" ; then
 			LIBS="$LIBS -ldl"
 			AC_MSG_CHECKING([if programs using OpenSSL need -ldl])
 			AC_LINK_IFELSE(
-				[AC_LANG_PROGRAM([[ #include <openssl/evp.h> ]],
-				[[ SSLeay_add_all_algorithms(); ]])],
+				[AC_LANG_PROGRAM([[ #include <openssl/err.h> ]],
+				[[ ERR_load_crypto_strings(); ]])],
 				[
 					AC_MSG_RESULT([yes])
 				],
@@ -2680,14 +2703,62 @@ if test "x$openssl" = "xyes" ; then
 	AC_CHECK_FUNCS([ \
 		BN_is_prime_ex \
 		DSA_generate_parameters_ex \
-		EVP_DigestInit_ex \
+		EVP_CIPHER_CTX_ctrl \
 		EVP_DigestFinal_ex \
-		EVP_MD_CTX_init \
+		EVP_DigestInit_ex \
 		EVP_MD_CTX_cleanup \
 		EVP_MD_CTX_copy_ex \
+		EVP_MD_CTX_init \
 		HMAC_CTX_init \
 		RSA_generate_key_ex \
 		RSA_get_default_method \
+	])
+
+	# OpenSSL_add_all_algorithms may be a macro.
+	AC_CHECK_FUNC(OpenSSL_add_all_algorithms,
+	    AC_DEFINE(HAVE_OPENSSL_ADD_ALL_ALGORITHMS, 1, [as a function]),
+	    AC_CHECK_DECL(OpenSSL_add_all_algorithms,
+		AC_DEFINE(HAVE_OPENSSL_ADD_ALL_ALGORITHMS, 1, [as a macro]), ,
+		[[#include <openssl/evp.h>]]
+	    )
+	)
+
+	# LibreSSL/OpenSSL 1.1x API
+	AC_CHECK_FUNCS([ \
+		OPENSSL_init_crypto \
+		DH_get0_key \
+		DH_get0_pqg \
+		DH_set0_key \
+		DH_set_length \
+		DH_set0_pqg \
+		DSA_get0_key \
+		DSA_get0_pqg \
+		DSA_set0_key \
+		DSA_set0_pqg \
+		DSA_SIG_get0 \
+		DSA_SIG_set0 \
+		ECDSA_SIG_get0 \
+		ECDSA_SIG_set0 \
+		EVP_CIPHER_CTX_iv \
+		EVP_CIPHER_CTX_iv_noconst \
+		EVP_CIPHER_CTX_get_iv \
+		EVP_CIPHER_CTX_set_iv \
+		RSA_get0_crt_params \
+		RSA_get0_factors \
+		RSA_get0_key \
+		RSA_set0_crt_params \
+		RSA_set0_factors \
+		RSA_set0_key \
+		RSA_meth_free \
+		RSA_meth_dup \
+		RSA_meth_set1_name \
+		RSA_meth_get_finish \
+		RSA_meth_set_priv_enc \
+		RSA_meth_set_priv_dec \
+		RSA_meth_set_finish \
+		EVP_PKEY_get0_RSA \
+		EVP_MD_CTX_new \
+		EVP_MD_CTX_free \
 	])
 
 	if test "x$openssl_engine" = "xyes" ; then
@@ -2772,10 +2843,6 @@ if test "x$openssl" = "xyes" ; then
 			   aes256-gcm@openssh.com"
 		]
 	)
-
-	AC_SEARCH_LIBS([EVP_CIPHER_CTX_ctrl], [crypto],
-		[AC_DEFINE([HAVE_EVP_CIPHER_CTX_CTRL], [1],
-		    [Define if libcrypto has EVP_CIPHER_CTX_ctrl])])
 
 	AC_MSG_CHECKING([if EVP_DigestUpdate returns an int])
 	AC_LINK_IFELSE(
@@ -2908,6 +2975,7 @@ if test "x$openssl" = "xyes" ; then
 	if test x$enable_nistp256 = x1 || test x$enable_nistp384 = x1 || \
 	    test x$enable_nistp521 = x1; then
 		AC_DEFINE(OPENSSL_HAS_ECC, [1], [OpenSSL has ECC])
+		AC_CHECK_FUNCS([EC_KEY_METHOD_new])
 	fi
 	if test x$enable_nistp256 = x1; then
 		AC_DEFINE([OPENSSL_HAS_NISTP256], [1],
@@ -3388,10 +3456,10 @@ fi
 AC_CHECK_TYPES([long long, unsigned long long, long double])
 
 # Check datatype sizes
-AC_CHECK_SIZEOF([short int], [2])
-AC_CHECK_SIZEOF([int], [4])
-AC_CHECK_SIZEOF([long int], [4])
-AC_CHECK_SIZEOF([long long int], [8])
+AC_CHECK_SIZEOF([short int])
+AC_CHECK_SIZEOF([int])
+AC_CHECK_SIZEOF([long int])
+AC_CHECK_SIZEOF([long long int])
 
 # Sanity check long long for some platforms (AIX)
 if test "x$ac_cv_sizeof_long_long_int" = "x4" ; then
@@ -4340,8 +4408,8 @@ AC_ARG_WITH([kerberos5],
 					[ CPPFLAGS="$oldCPP" ])
 
 		fi
-		if test ! -z "$need_dash_r" ; then
-			LDFLAGS="$LDFLAGS -R${KRB5ROOT}/lib"
+		if test -n "${rpath_opt}" ; then
+			LDFLAGS="$LDFLAGS ${rpath_opt}${KRB5ROOT}/lib"
 		fi
 		if test ! -z "$blibpath" ; then
 			blibpath="$blibpath:${KRB5ROOT}/lib"
