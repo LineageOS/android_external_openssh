@@ -550,6 +550,9 @@
 /* Define to 1 if you have the `HMAC_CTX_init' function. */
 #define HAVE_HMAC_CTX_INIT 1
 
+/* Define if libcrypto has EVP_PKEY_get0_RSA */
+#define HAVE_EVP_PKEY_GET0_RSA 1
+
 /* Define if you have ut_host in utmp.h */
 #define HAVE_HOST_IN_UTMP 1
 
