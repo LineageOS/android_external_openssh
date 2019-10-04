@@ -125,18 +125,15 @@ LOCAL_SHARED_LIBRARIES += libssl libcrypto libdl libz
 
 LOCAL_MODULE := libssh
 
-LOCAL_CFLAGS += \
-    -O3 \
-    -Wno-macro-redefined \
-    -Wno-pointer-sign \
-    -Wno-sign-compare \
-    -Wno-unused-parameter
+LOCAL_CFLAGS += -O3 -Wno-unused-parameter -Wno-macro-redefined
 
 LOCAL_CFLAGS += -DGCE_PLATFORM_SDK_VERSION=$(PLATFORM_SDK_VERSION)
 
 ifneq (,$(SSHDIR))
 LOCAL_CFLAGS += -DSSHDIR=\"$(SSHDIR)\"
 endif
+
+LOCAL_CFLAGS += -Wno-sign-compare -Wno-error
 
 include $(BUILD_SHARED_LIBRARY)
 
@@ -158,11 +155,7 @@ LOCAL_SRC_FILES := \
 
 LOCAL_MODULE := ssh
 
-LOCAL_CFLAGS += \
-    -Wno-macro-redefined \
-    -Wno-pointer-sign \
-    -Wno-sign-compare \
-    -Wno-unused-parameter
+LOCAL_CFLAGS += -Wno-unused-parameter -Wno-macro-redefined -Wno-error
 
 LOCAL_C_INCLUDES := \
     external/zlib \
@@ -266,12 +259,7 @@ LOCAL_SRC_FILES := \
 
 LOCAL_MODULE := sshd
 
-LOCAL_CFLAGS += \
-    -Wno-implicit-function-declaration \
-    -Wno-macro-redefined \
-    -Wno-pointer-sign \
-    -Wno-unused-parameter \
-    -Wno-unused-variable
+LOCAL_CFLAGS += -Wno-error -Wno-unused-parameter -Wno-macro-redefined
 
 LOCAL_C_INCLUDES := \
     external/zlib \
