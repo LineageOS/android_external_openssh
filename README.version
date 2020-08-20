@@ -1,4 +1,4 @@
-URL: ftp://ftp.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-6.8p1.tar.gz
-Version: 6.8p1
+URL: https://cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-8.3p1.tar.gz
+Version: 8.3p1
 BugComponent: 180238
 Owners: adelva, cloud-android-devs

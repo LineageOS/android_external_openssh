@@ -1,4 +1,4 @@
-/* $OpenBSD: sftp-server-main.c,v 1.4 2009/02/21 19:32:04 tobias Exp $ */
+/* $OpenBSD: sftp-server-main.c,v 1.6 2019/06/06 05:13:13 otto Exp $ */
 /*
  * Copyright (c) 2008 Markus Friedl.  All rights reserved.
  *
@@ -26,6 +26,7 @@
 #include "log.h"
 #include "sftp.h"
 #include "misc.h"
+#include "xmalloc.h"
 
 void
 cleanup_exit(int i)
@@ -40,6 +41,8 @@ main(int argc, char **argv)
 
 	/* Ensure that fds 0, 1 and 2 are open or directed to /dev/null */
 	sanitise_stdfd();
+
+	seed_rng();
 
 	if ((user_pw = getpwuid(getuid())) == NULL) {
 		fprintf(stderr, "No user found for uid %lu\n",

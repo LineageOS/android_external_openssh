@@ -1,4 +1,4 @@
-/* $OpenBSD: sftp-client.h,v 1.26 2015/01/14 13:54:13 djm Exp $ */
+/* $OpenBSD: sftp-client.h,v 1.28 2019/01/16 23:23:45 djm Exp $ */
 
 /*
  * Copyright (c) 2001-2004 Damien Miller <djm@openbsd.org>
@@ -20,6 +20,12 @@
 
 #ifndef _SFTP_CLIENT_H
 #define _SFTP_CLIENT_H
+
+#ifdef USE_SYSTEM_GLOB
+# include <glob.h>
+#else
+# include "openbsd-compat/glob.h"
+#endif
 
 typedef struct SFTP_DIRENT SFTP_DIRENT;
 
@@ -85,6 +91,9 @@ int do_setstat(struct sftp_conn *, const char *, Attrib *);
 /* Set file attributes of open file 'handle' */
 int do_fsetstat(struct sftp_conn *, const u_char *, u_int, Attrib *);
 
+/* Set file attributes of 'path', not following symlinks */
+int do_lsetstat(struct sftp_conn *conn, const char *path, Attrib *a);
+
 /* Canonicalise 'path' - caller must free result */
 char *do_realpath(struct sftp_conn *, const char *);
 
@@ -111,7 +120,7 @@ int do_download(struct sftp_conn *, const char *, const char *,
     Attrib *, int, int, int);
 
 /*
- * Recursively download 'remote_directory' to 'local_directory'. Preserve 
+ * Recursively download 'remote_directory' to 'local_directory'. Preserve
  * times if 'pflag' is set
  */
 int download_dir(struct sftp_conn *, const char *, const char *,
@@ -124,7 +133,7 @@ int download_dir(struct sftp_conn *, const char *, const char *,
 int do_upload(struct sftp_conn *, const char *, const char *, int, int, int);
 
 /*
- * Recursively upload 'local_directory' to 'remote_directory'. Preserve 
+ * Recursively upload 'local_directory' to 'remote_directory'. Preserve
  * times if 'pflag' is set
  */
 int upload_dir(struct sftp_conn *, const char *, const char *, int, int, int,

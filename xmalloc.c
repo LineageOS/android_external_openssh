@@ -1,4 +1,4 @@
-/* $OpenBSD: xmalloc.c,v 1.31 2015/02/06 23:21:59 millert Exp $ */
+/* $OpenBSD: xmalloc.c,v 1.36 2019/11/12 22:32:48 djm Exp $ */
 /*
  * Author: Tatu Ylonen <ylo@cs.hut.fi>
  * Copyright (c) 1995 Tatu Ylonen <ylo@cs.hut.fi>, Espoo, Finland
@@ -17,7 +17,7 @@
 
 #include <stdarg.h>
 #ifdef HAVE_STDINT_H
-#include <stdint.h>
+# include <stdint.h>
 #endif
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,6 +25,10 @@
 
 #include "xmalloc.h"
 #include "log.h"
+
+#if defined(__OpenBSD__)
+char *malloc_options = "S";
+#endif /* __OpenBSD__ */
 
 void *
 xmalloc(size_t size)
@@ -56,22 +60,26 @@ xcalloc(size_t nmemb, size_t size)
 }
 
 void *
-xrealloc(void *ptr, size_t nmemb, size_t size)
+xreallocarray(void *ptr, size_t nmemb, size_t size)
 {
 	void *new_ptr;
-	size_t new_size = nmemb * size;
 
-	if (new_size == 0)
-		fatal("xrealloc: zero size");
-	if (SIZE_MAX / nmemb < size)
-		fatal("xrealloc: nmemb * size > SIZE_MAX");
-	if (ptr == NULL)
-		new_ptr = malloc(new_size);
-	else
-		new_ptr = realloc(ptr, new_size);
+	new_ptr = reallocarray(ptr, nmemb, size);
 	if (new_ptr == NULL)
-		fatal("xrealloc: out of memory (new_size %zu bytes)",
-		    new_size);
+		fatal("xreallocarray: out of memory (%zu elements of %zu bytes)",
+		    nmemb, size);
+	return new_ptr;
+}
+
+void *
+xrecallocarray(void *ptr, size_t onmemb, size_t nmemb, size_t size)
+{
+	void *new_ptr;
+
+	new_ptr = recallocarray(ptr, onmemb, nmemb, size);
+	if (new_ptr == NULL)
+		fatal("xrecallocarray: out of memory (%zu elements of %zu bytes)",
+		    nmemb, size);
 	return new_ptr;
 }
 
@@ -88,17 +96,24 @@ xstrdup(const char *str)
 }
 
 int
+xvasprintf(char **ret, const char *fmt, va_list ap)
+{
+	int i;
+
+	i = vasprintf(ret, fmt, ap);
+	if (i < 0 || *ret == NULL)
+		fatal("xvasprintf: could not allocate memory");
+	return i;
+}
+
+int
 xasprintf(char **ret, const char *fmt, ...)
 {
 	va_list ap;
 	int i;
 
 	va_start(ap, fmt);
-	i = vasprintf(ret, fmt, ap);
+	i = xvasprintf(ret, fmt, ap);
 	va_end(ap);
-
-	if (i < 0 || *ret == NULL)
-		fatal("xasprintf: could not allocate memory");
-
-	return (i);
+	return i;
 }

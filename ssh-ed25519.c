@@ -1,4 +1,4 @@
-/* $OpenBSD: ssh-ed25519.c,v 1.6 2015/01/15 21:38:50 markus Exp $ */
+/* $OpenBSD: ssh-ed25519.c,v 1.8 2020/02/26 13:40:09 jsg Exp $ */
 /*
  * Copyright (c) 2013 Markus Friedl <markus@openbsd.org>
  *
@@ -83,10 +83,8 @@ ssh_ed25519_sign(const struct sshkey *key, u_char **sigp, size_t *lenp,
 	r = 0;
  out:
 	sshbuf_free(b);
-	if (sig != NULL) {
-		explicit_bzero(sig, slen);
-		free(sig);
-	}
+	if (sig != NULL) 
+		freezero(sig, slen);
 
 	return r;
 }
@@ -107,7 +105,8 @@ ssh_ed25519_verify(const struct sshkey *key,
 	if (key == NULL ||
 	    sshkey_type_plain(key->type) != KEY_ED25519 ||
 	    key->ed25519_pk == NULL ||
-	    datalen >= INT_MAX - crypto_sign_ed25519_BYTES)
+	    datalen >= INT_MAX - crypto_sign_ed25519_BYTES ||
+	    signature == NULL || signaturelen == 0)
 		return SSH_ERR_INVALID_ARGUMENT;
 
 	if ((b = sshbuf_from(signature, signaturelen)) == NULL)
@@ -152,14 +151,10 @@ ssh_ed25519_verify(const struct sshkey *key,
 	/* success */
 	r = 0;
  out:
-	if (sm != NULL) {
-		explicit_bzero(sm, smlen);
-		free(sm);
-	}
-	if (m != NULL) {
-		explicit_bzero(m, smlen); /* NB mlen may be invalid if r != 0 */
-		free(m);
-	}
+	if (sm != NULL) 
+		freezero(sm, smlen);
+	if (m != NULL) 
+		freezero(m, smlen); /* NB mlen may be invalid if r != 0 */
 	sshbuf_free(b);
 	free(ktype);
 	return r;

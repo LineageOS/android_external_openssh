@@ -1,4 +1,4 @@
-/*	$OpenBSD: ssherr.c,v 1.4 2015/02/16 22:13:32 djm Exp $	*/
+/*	$OpenBSD: ssherr.c,v 1.10 2020/01/25 23:13:09 djm Exp $	*/
 /*
  * Copyright (c) 2011 Damien Miller
  *
@@ -104,7 +104,7 @@ ssh_err(int n)
 	case SSH_ERR_NEED_REKEY:
 		return "rekeying not supported by peer";
 	case SSH_ERR_PASSPHRASE_TOO_SHORT:
-		return "passphrase is too short (minimum four characters)";
+		return "passphrase is too short (minimum five characters)";
 	case SSH_ERR_FILE_CHANGED:
 		return "file changed while reading";
 	case SSH_ERR_KEY_UNKNOWN_CIPHER:
@@ -135,6 +135,16 @@ ssh_err(int n)
 		return "Connection corrupted";
 	case SSH_ERR_PROTOCOL_ERROR:
 		return "Protocol error";
+	case SSH_ERR_KEY_LENGTH:
+		return "Invalid key length";
+	case SSH_ERR_NUMBER_TOO_LARGE:
+		return "number is too large";
+	case SSH_ERR_SIGN_ALG_UNSUPPORTED:
+		return "signature algorithm not supported";
+	case SSH_ERR_FEATURE_UNSUPPORTED:
+		return "requested feature not supported";
+	case SSH_ERR_DEVICE_NOT_FOUND:
+		return "device not found";
 	default:
 		return "unknown error";
 	}
