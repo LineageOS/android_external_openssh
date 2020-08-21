@@ -1,4 +1,4 @@
-/*	$OpenBSD: sshbuf.h,v 1.4 2015/01/14 15:02:39 djm Exp $	*/
+/*	$OpenBSD: sshbuf.h,v 1.21 2020/04/26 09:38:14 dtucker Exp $	*/
 /*
  * Copyright (c) 2011 Damien Miller
  *
@@ -49,15 +49,6 @@ struct sshbuf {
 	u_int refcount;		/* Tracks self and number of child buffers */
 	struct sshbuf *parent;	/* If child, pointer to parent */
 };
-
-#ifndef SSHBUF_NO_DEPREACTED
-/*
- * NB. Please do not use sshbuf_init() in new code. Please use sshbuf_new()
- * instead. sshbuf_init() is deprectated and will go away soon (it is
- * only included to allow compat with buffer_* in OpenSSH)
- */
-void sshbuf_init(struct sshbuf *buf);
-#endif
 
 /*
  * Create a new sshbuf buffer.
@@ -120,12 +111,12 @@ size_t	sshbuf_len(const struct sshbuf *buf);
 size_t	sshbuf_avail(const struct sshbuf *buf);
 
 /*
- * Returns a read-only pointer to the start of the the data in buf
+ * Returns a read-only pointer to the start of the data in buf
  */
 const u_char *sshbuf_ptr(const struct sshbuf *buf);
 
 /*
- * Returns a mutable pointer to the start of the the data in buf, or
+ * Returns a mutable pointer to the start of the data in buf, or
  * NULL if the buffer is read-only.
  */
 u_char *sshbuf_mutable_ptr(const struct sshbuf *buf);
@@ -139,9 +130,17 @@ u_char *sshbuf_mutable_ptr(const struct sshbuf *buf);
 int	sshbuf_check_reserve(const struct sshbuf *buf, size_t len);
 
 /*
+ * Preallocates len additional bytes in buf.
+ * Useful for cases where the caller knows how many bytes will ultimately be
+ * required to avoid realloc in the buffer code.
+ * Returns 0 on success, or a negative SSH_ERR_* error code on failure.
+ */
+int	sshbuf_allocate(struct sshbuf *buf, size_t len);
+
+/*
  * Reserve len bytes in buf.
  * Returns 0 on success and a pointer to the first reserved byte via the
- * optional dpp parameter or a negative * SSH_ERR_* error code on failure.
+ * optional dpp parameter or a negative SSH_ERR_* error code on failure.
  */
 int	sshbuf_reserve(struct sshbuf *buf, size_t len, u_char **dpp);
 
@@ -176,6 +175,26 @@ int	sshbuf_put_u64(struct sshbuf *buf, u_int64_t val);
 int	sshbuf_put_u32(struct sshbuf *buf, u_int32_t val);
 int	sshbuf_put_u16(struct sshbuf *buf, u_int16_t val);
 int	sshbuf_put_u8(struct sshbuf *buf, u_char val);
+
+/* Functions to peek at the contents of a buffer without modifying it. */
+int	sshbuf_peek_u64(const struct sshbuf *buf, size_t offset,
+    u_int64_t *valp);
+int	sshbuf_peek_u32(const struct sshbuf *buf, size_t offset,
+    u_int32_t *valp);
+int	sshbuf_peek_u16(const struct sshbuf *buf, size_t offset,
+    u_int16_t *valp);
+int	sshbuf_peek_u8(const struct sshbuf *buf, size_t offset,
+    u_char *valp);
+
+/*
+ * Functions to poke values into an existing buffer (e.g. a length header
+ * to a packet). The destination bytes must already exist in the buffer.
+ */
+int sshbuf_poke_u64(struct sshbuf *buf, size_t offset, u_int64_t val);
+int sshbuf_poke_u32(struct sshbuf *buf, size_t offset, u_int32_t val);
+int sshbuf_poke_u16(struct sshbuf *buf, size_t offset, u_int16_t val);
+int sshbuf_poke_u8(struct sshbuf *buf, size_t offset, u_char val);
+int sshbuf_poke(struct sshbuf *buf, size_t offset, void *v, size_t len);
 
 /*
  * Functions to extract or store SSH wire encoded strings (u32 len || data)
@@ -212,10 +231,8 @@ int	sshbuf_put_bignum2_bytes(struct sshbuf *buf, const void *v, size_t len);
 int	sshbuf_get_bignum2_bytes_direct(struct sshbuf *buf,
 	    const u_char **valp, size_t *lenp);
 #ifdef WITH_OPENSSL
-int	sshbuf_get_bignum2(struct sshbuf *buf, BIGNUM *v);
-int	sshbuf_get_bignum1(struct sshbuf *buf, BIGNUM *v);
+int	sshbuf_get_bignum2(struct sshbuf *buf, BIGNUM **valp);
 int	sshbuf_put_bignum2(struct sshbuf *buf, const BIGNUM *v);
-int	sshbuf_put_bignum1(struct sshbuf *buf, const BIGNUM *v);
 # ifdef OPENSSL_HAS_ECC
 int	sshbuf_get_ec(struct sshbuf *buf, EC_POINT *v, const EC_GROUP *g);
 int	sshbuf_get_eckey(struct sshbuf *buf, EC_KEY *v);
@@ -234,52 +251,106 @@ void	sshbuf_dump_data(const void *s, size_t len, FILE *f);
 char	*sshbuf_dtob16(struct sshbuf *buf);
 
 /* Encode the contents of the buffer as base64 */
-char	*sshbuf_dtob64(struct sshbuf *buf);
+char	*sshbuf_dtob64_string(const struct sshbuf *buf, int wrap);
+int	sshbuf_dtob64(const struct sshbuf *d, struct sshbuf *b64, int wrap);
 
 /* Decode base64 data and append it to the buffer */
 int	sshbuf_b64tod(struct sshbuf *buf, const char *b64);
 
+/*
+ * Tests whether the buffer contains the specified byte sequence at the
+ * specified offset. Returns 0 on successful match, or a ssherr.h code
+ * otherwise. SSH_ERR_INVALID_FORMAT indicates sufficient bytes were
+ * present but the buffer contents did not match those supplied. Zero-
+ * length comparisons are not allowed.
+ *
+ * If sufficient data is present to make a comparison, then it is
+ * performed with timing independent of the value of the data. If
+ * insufficient data is present then the comparison is not attempted at
+ * all.
+ */
+int	sshbuf_cmp(const struct sshbuf *b, size_t offset,
+    const void *s, size_t len);
+
+/*
+ * Searches the buffer for the specified string. Returns 0 on success
+ * and updates *offsetp with the offset of the first match, relative to
+ * the start of the buffer. Otherwise sshbuf_find will return a ssherr.h
+ * error code. SSH_ERR_INVALID_FORMAT indicates sufficient bytes were
+ * present in the buffer for a match to be possible but none was found.
+ * Searches for zero-length data are not allowed.
+ */
+int
+sshbuf_find(const struct sshbuf *b, size_t start_offset,
+    const void *s, size_t len, size_t *offsetp);
+
+/*
+ * Duplicate the contents of a buffer to a string (caller to free).
+ * Returns NULL on buffer error, or if the buffer contains a premature
+ * nul character.
+ */
+char *sshbuf_dup_string(struct sshbuf *buf);
+
+/*
+ * Fill a buffer from a file descriptor or filename. Both allocate the
+ * buffer for the caller.
+ */
+int sshbuf_load_fd(int, struct sshbuf **)
+    __attribute__((__nonnull__ (2)));
+int sshbuf_load_file(const char *, struct sshbuf **)
+    __attribute__((__nonnull__ (2)));
+
+/*
+ * Write a buffer to a path, creating/truncating as needed (mode 0644,
+ * subject to umask). The buffer contents are not modified.
+ */
+int sshbuf_write_file(const char *path, struct sshbuf *buf)
+    __attribute__((__nonnull__ (2)));
+
 /* Macros for decoding/encoding integers */
 #define PEEK_U64(p) \
-	(((u_int64_t)(((u_char *)(p))[0]) << 56) | \
-	 ((u_int64_t)(((u_char *)(p))[1]) << 48) | \
-	 ((u_int64_t)(((u_char *)(p))[2]) << 40) | \
-	 ((u_int64_t)(((u_char *)(p))[3]) << 32) | \
-	 ((u_int64_t)(((u_char *)(p))[4]) << 24) | \
-	 ((u_int64_t)(((u_char *)(p))[5]) << 16) | \
-	 ((u_int64_t)(((u_char *)(p))[6]) << 8) | \
-	  (u_int64_t)(((u_char *)(p))[7]))
+	(((u_int64_t)(((const u_char *)(p))[0]) << 56) | \
+	 ((u_int64_t)(((const u_char *)(p))[1]) << 48) | \
+	 ((u_int64_t)(((const u_char *)(p))[2]) << 40) | \
+	 ((u_int64_t)(((const u_char *)(p))[3]) << 32) | \
+	 ((u_int64_t)(((const u_char *)(p))[4]) << 24) | \
+	 ((u_int64_t)(((const u_char *)(p))[5]) << 16) | \
+	 ((u_int64_t)(((const u_char *)(p))[6]) << 8) | \
+	  (u_int64_t)(((const u_char *)(p))[7]))
 #define PEEK_U32(p) \
-	(((u_int32_t)(((u_char *)(p))[0]) << 24) | \
-	 ((u_int32_t)(((u_char *)(p))[1]) << 16) | \
-	 ((u_int32_t)(((u_char *)(p))[2]) << 8) | \
-	  (u_int32_t)(((u_char *)(p))[3]))
+	(((u_int32_t)(((const u_char *)(p))[0]) << 24) | \
+	 ((u_int32_t)(((const u_char *)(p))[1]) << 16) | \
+	 ((u_int32_t)(((const u_char *)(p))[2]) << 8) | \
+	  (u_int32_t)(((const u_char *)(p))[3]))
 #define PEEK_U16(p) \
-	(((u_int16_t)(((u_char *)(p))[0]) << 8) | \
-	  (u_int16_t)(((u_char *)(p))[1]))
+	(((u_int16_t)(((const u_char *)(p))[0]) << 8) | \
+	  (u_int16_t)(((const u_char *)(p))[1]))
 
 #define POKE_U64(p, v) \
 	do { \
-		((u_char *)(p))[0] = (((u_int64_t)(v)) >> 56) & 0xff; \
-		((u_char *)(p))[1] = (((u_int64_t)(v)) >> 48) & 0xff; \
-		((u_char *)(p))[2] = (((u_int64_t)(v)) >> 40) & 0xff; \
-		((u_char *)(p))[3] = (((u_int64_t)(v)) >> 32) & 0xff; \
-		((u_char *)(p))[4] = (((u_int64_t)(v)) >> 24) & 0xff; \
-		((u_char *)(p))[5] = (((u_int64_t)(v)) >> 16) & 0xff; \
-		((u_char *)(p))[6] = (((u_int64_t)(v)) >> 8) & 0xff; \
-		((u_char *)(p))[7] = ((u_int64_t)(v)) & 0xff; \
+		const u_int64_t __v = (v); \
+		((u_char *)(p))[0] = (__v >> 56) & 0xff; \
+		((u_char *)(p))[1] = (__v >> 48) & 0xff; \
+		((u_char *)(p))[2] = (__v >> 40) & 0xff; \
+		((u_char *)(p))[3] = (__v >> 32) & 0xff; \
+		((u_char *)(p))[4] = (__v >> 24) & 0xff; \
+		((u_char *)(p))[5] = (__v >> 16) & 0xff; \
+		((u_char *)(p))[6] = (__v >> 8) & 0xff; \
+		((u_char *)(p))[7] = __v & 0xff; \
 	} while (0)
 #define POKE_U32(p, v) \
 	do { \
-		((u_char *)(p))[0] = (((u_int64_t)(v)) >> 24) & 0xff; \
-		((u_char *)(p))[1] = (((u_int64_t)(v)) >> 16) & 0xff; \
-		((u_char *)(p))[2] = (((u_int64_t)(v)) >> 8) & 0xff; \
-		((u_char *)(p))[3] = ((u_int64_t)(v)) & 0xff; \
+		const u_int32_t __v = (v); \
+		((u_char *)(p))[0] = (__v >> 24) & 0xff; \
+		((u_char *)(p))[1] = (__v >> 16) & 0xff; \
+		((u_char *)(p))[2] = (__v >> 8) & 0xff; \
+		((u_char *)(p))[3] = __v & 0xff; \
 	} while (0)
 #define POKE_U16(p, v) \
 	do { \
-		((u_char *)(p))[0] = (((u_int64_t)(v)) >> 8) & 0xff; \
-		((u_char *)(p))[1] = ((u_int64_t)(v)) & 0xff; \
+		const u_int16_t __v = (v); \
+		((u_char *)(p))[0] = (__v >> 8) & 0xff; \
+		((u_char *)(p))[1] = __v & 0xff; \
 	} while (0)
 
 /* Internal definitions follow. Exposed for regress tests */

@@ -1,5 +1,3 @@
-/* $Id: bsd-cygwin_util.h,v 1.18 2014/05/27 04:34:43 djm Exp $ */
-
 /*
  * Copyright (c) 2000, 2001, 2011, 2013 Corinna Vinschen <vinschen@redhat.com>
  *
@@ -43,7 +41,7 @@ typedef void *HANDLE;
 #define UNLEN 256
 
 /* Cygwin functions for which declarations are only available when including
-   windows headers, so we have to define them here explicitely. */
+   windows headers, so we have to define them here explicitly. */
 extern HANDLE cygwin_logon_user (const struct passwd *, const char *);
 extern void cygwin_set_impersonation_token (const HANDLE);
 
@@ -57,6 +55,7 @@ int binary_open(const char *, int , ...);
 int check_ntsec(const char *);
 char **fetch_windows_environment(void);
 void free_windows_environment(char **);
+int cygwin_ug_match_pattern_list(const char *, const char *);
 
 #ifndef NO_BINARY_OPEN
 #define open binary_open

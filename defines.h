@@ -25,9 +25,6 @@
 #ifndef _DEFINES_H
 #define _DEFINES_H
 
-/* $Id: defines.h,v 1.183 2014/09/02 19:33:26 djm Exp $ */
-
-
 /* Constants */
 
 #if defined(HAVE_DECL_SHUT_RD) && HAVE_DECL_SHUT_RD == 0
@@ -40,6 +37,19 @@ enum
 # define SHUT_RD   SHUT_RD
 # define SHUT_WR   SHUT_WR
 # define SHUT_RDWR SHUT_RDWR
+#endif
+
+/*
+ * Cygwin doesn't really have a notion of reserved ports.  It is still
+ * is useful on the client side so for compatibility it defines as 1024 via
+ * netinet/in.h inside an enum.  We * don't actually want that restriction
+ * so we want to set that to zero, but we can't do it direct in config.h
+ * because it'll cause a conflicting definition the first time we include
+ * netinet/in.h.
+ */
+
+#ifdef HAVE_CYGWIN
+#define IPPORT_RESERVED 0
 #endif
 
 /*
@@ -86,6 +96,18 @@ enum
 #ifndef IPTOS_DSCP_EF
 # define	IPTOS_DSCP_EF		0xb8
 #endif /* IPTOS_DSCP_EF */
+#ifndef IPTOS_DSCP_LE
+# define	IPTOS_DSCP_LE		0x01
+#endif /* IPTOS_DSCP_LE */
+#ifndef IPTOS_PREC_CRITIC_ECP
+# define IPTOS_PREC_CRITIC_ECP		0xa0
+#endif
+#ifndef IPTOS_PREC_INTERNETCONTROL
+# define IPTOS_PREC_INTERNETCONTROL	0xc0
+#endif
+#ifndef IPTOS_PREC_NETCONTROL
+# define IPTOS_PREC_NETCONTROL		0xe0
+#endif
 
 #ifndef PATH_MAX
 # ifdef _POSIX_PATH_MAX
@@ -98,10 +120,6 @@ enum
 #  define MAXPATHLEN PATH_MAX
 # else /* PATH_MAX */
 #  define MAXPATHLEN 64
-/* realpath uses a fixed buffer of size MAXPATHLEN, so force use of ours */
-#  ifndef BROKEN_REALPATH
-#   define BROKEN_REALPATH 1
-#  endif /* BROKEN_REALPATH */
 # endif /* PATH_MAX */
 #endif /* MAXPATHLEN */
 
@@ -204,24 +222,12 @@ typedef signed char int8_t;
 # if (SIZEOF_SHORT_INT == 2)
 typedef short int int16_t;
 # else
-#  ifdef _UNICOS
-#   if (SIZEOF_SHORT_INT == 4)
-typedef short int16_t;
-#   else
-typedef long  int16_t;
-#   endif
-#  else
 #   error "16 bit int type not found."
-#  endif /* _UNICOS */
 # endif
 # if (SIZEOF_INT == 4)
 typedef int int32_t;
 # else
-#  ifdef _UNICOS
-typedef long  int32_t;
-#  else
 #   error "32 bit int type not found."
-#  endif /* _UNICOS */
 # endif
 #endif
 
@@ -237,27 +243,30 @@ typedef unsigned char u_int8_t;
 #  if (SIZEOF_SHORT_INT == 2)
 typedef unsigned short int u_int16_t;
 #  else
-#   ifdef _UNICOS
-#    if (SIZEOF_SHORT_INT == 4)
-typedef unsigned short u_int16_t;
-#    else
-typedef unsigned long  u_int16_t;
-#    endif
-#   else
 #    error "16 bit int type not found."
-#   endif
 #  endif
 #  if (SIZEOF_INT == 4)
 typedef unsigned int u_int32_t;
 #  else
-#   ifdef _UNICOS
-typedef unsigned long  u_int32_t;
-#   else
 #    error "32 bit int type not found."
-#   endif
 #  endif
 # endif
 #define __BIT_TYPES_DEFINED__
+#endif
+
+#if !defined(LLONG_MIN) && defined(LONG_LONG_MIN)
+#define LLONG_MIN LONG_LONG_MIN
+#endif
+#if !defined(LLONG_MAX) && defined(LONG_LONG_MAX)
+#define LLONG_MAX LONG_LONG_MAX
+#endif
+
+#ifndef UINT32_MAX
+# if defined(HAVE_DECL_UINT32_MAX) && (HAVE_DECL_UINT32_MAX == 0)
+#  if (SIZEOF_INT == 4)
+#    define UINT32_MAX	UINT_MAX
+#  endif
+# endif
 #endif
 
 /* 64-bit types */
@@ -318,8 +327,31 @@ typedef unsigned int size_t;
 #define SIZE_MAX SIZE_T_MAX
 #endif
 
+#ifndef INT32_MAX
+# if (SIZEOF_INT == 4)
+#  define INT32_MAX INT_MAX
+# elif (SIZEOF_LONG == 4)
+#  define INT32_MAX LONG_MAX
+# else
+#  error "need INT32_MAX"
+# endif
+#endif
+
+#ifndef INT64_MAX
+# if (SIZEOF_INT == 8)
+#  define INT64_MAX INT_MAX
+# elif (SIZEOF_LONG == 8)
+#  define INT64_MAX LONG_MAX
+# elif (SIZEOF_LONG_LONG_INT == 8)
+#  define INT64_MAX LLONG_MAX
+# else
+#  error "need INT64_MAX"
+# endif
+#endif
+
 #ifndef HAVE_SSIZE_T
 typedef int ssize_t;
+#define SSIZE_MAX INT_MAX
 # define HAVE_SSIZE_T
 #endif /* HAVE_SSIZE_T */
 
@@ -487,6 +519,13 @@ struct winsize {
 }
 #endif
 
+#ifndef timespeccmp
+#define timespeccmp(tsp, usp, cmp)					\
+	(((tsp)->tv_sec == (usp)->tv_sec) ?				\
+	    ((tsp)->tv_nsec cmp (usp)->tv_nsec) :			\
+	    ((tsp)->tv_sec cmp (usp)->tv_sec))
+#endif
+
 #ifndef __P
 # define __P(x) x
 #endif
@@ -643,12 +682,6 @@ struct winsize {
 
 #if defined(KRB5) && !defined(HEIMDAL)
 #  define krb5_get_err_text(context,code) error_message(code)
-#endif
-
-#if defined(SKEYCHALLENGE_4ARG)
-# define _compat_skeychallenge(a,b,c,d) skeychallenge(a,b,c,d)
-#else
-# define _compat_skeychallenge(a,b,c,d) skeychallenge(a,b,c)
 #endif
 
 /* Maximum number of file descriptors available */
@@ -823,6 +856,14 @@ struct winsize {
 #endif
 
 /*
+ * We want functions in openbsd-compat, if enabled, to override system ones.
+ * We no-op out the weak symbol definition rather than remove it to reduce
+ * future sync problems.  Some compilers (eg Unixware) do not allow an
+ * empty statement, so we use a bogus function declaration.
+ */
+#define DEF_WEAK(x)	void __ssh_compat_weak_##x(void)
+
+/*
  * Platforms that have arc4random_uniform() and not arc4random_stir()
  * shouldn't need the latter.
  */
@@ -849,5 +890,12 @@ struct winsize {
 #  define __predict_false(exp)    ((exp) != 0)
 # endif /* gcc version */
 #endif /* __predict_true */
+
+#if defined(HAVE_GLOB_H) && defined(GLOB_HAS_ALTDIRFUNC) && \
+    defined(GLOB_HAS_GL_MATCHC) && defined(GLOB_HAS_GL_STATV) && \
+    defined(HAVE_DECL_GLOB_NOMATCH) &&  HAVE_DECL_GLOB_NOMATCH != 0 && \
+    !defined(BROKEN_GLOB)
+# define USE_SYSTEM_GLOB
+#endif
 
 #endif /* _DEFINES_H */

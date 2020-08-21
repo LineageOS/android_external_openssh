@@ -1,4 +1,4 @@
-/* $OpenBSD: mac.c,v 1.32 2015/01/15 18:32:54 naddy Exp $ */
+/* $OpenBSD: mac.c,v 1.35 2019/09/06 04:53:27 djm Exp $ */
 /*
  * Copyright (c) 2001 Markus Friedl.  All rights reserved.
  *
@@ -27,6 +27,7 @@
 
 #include <sys/types.h>
 
+#include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -58,29 +59,20 @@ static const struct macalg macs[] = {
 	/* Encrypt-and-MAC (encrypt-and-authenticate) variants */
 	{ "hmac-sha1",				SSH_DIGEST, SSH_DIGEST_SHA1, 0, 0, 0, 0 },
 	{ "hmac-sha1-96",			SSH_DIGEST, SSH_DIGEST_SHA1, 96, 0, 0, 0 },
-#ifdef HAVE_EVP_SHA256
 	{ "hmac-sha2-256",			SSH_DIGEST, SSH_DIGEST_SHA256, 0, 0, 0, 0 },
 	{ "hmac-sha2-512",			SSH_DIGEST, SSH_DIGEST_SHA512, 0, 0, 0, 0 },
-#endif
 	{ "hmac-md5",				SSH_DIGEST, SSH_DIGEST_MD5, 0, 0, 0, 0 },
 	{ "hmac-md5-96",			SSH_DIGEST, SSH_DIGEST_MD5, 96, 0, 0, 0 },
-#if defined(HAVE_EVP_RIPEMD)
-	{ "hmac-ripemd160",			SSH_DIGEST, SSH_DIGEST_RIPEMD160, 0, 0, 0, 0 },
-	{ "hmac-ripemd160@openssh.com",		SSH_DIGEST, SSH_DIGEST_RIPEMD160, 0, 0, 0, 0 },
-#endif
 	{ "umac-64@openssh.com",		SSH_UMAC, 0, 0, 128, 64, 0 },
 	{ "umac-128@openssh.com",		SSH_UMAC128, 0, 0, 128, 128, 0 },
 
 	/* Encrypt-then-MAC variants */
 	{ "hmac-sha1-etm@openssh.com",		SSH_DIGEST, SSH_DIGEST_SHA1, 0, 0, 0, 1 },
 	{ "hmac-sha1-96-etm@openssh.com",	SSH_DIGEST, SSH_DIGEST_SHA1, 96, 0, 0, 1 },
-#ifdef HAVE_EVP_SHA256
 	{ "hmac-sha2-256-etm@openssh.com",	SSH_DIGEST, SSH_DIGEST_SHA256, 0, 0, 0, 1 },
 	{ "hmac-sha2-512-etm@openssh.com",	SSH_DIGEST, SSH_DIGEST_SHA512, 0, 0, 0, 1 },
-#endif
 	{ "hmac-md5-etm@openssh.com",		SSH_DIGEST, SSH_DIGEST_MD5, 0, 0, 0, 1 },
 	{ "hmac-md5-96-etm@openssh.com",	SSH_DIGEST, SSH_DIGEST_MD5, 96, 0, 0, 1 },
-	{ "hmac-ripemd160-etm@openssh.com",	SSH_DIGEST, SSH_DIGEST_RIPEMD160, 0, 0, 0, 1 },
 	{ "umac-64-etm@openssh.com",		SSH_UMAC, 0, 0, 128, 64, 1 },
 	{ "umac-128-etm@openssh.com",		SSH_UMAC128, 0, 0, 128, 128, 1 },
 
@@ -169,7 +161,8 @@ mac_init(struct sshmac *mac)
 }
 
 int
-mac_compute(struct sshmac *mac, u_int32_t seqno, const u_char *data, int datalen,
+mac_compute(struct sshmac *mac, u_int32_t seqno,
+    const u_char *data, int datalen,
     u_char *digest, size_t dlen)
 {
 	static union {
@@ -210,6 +203,24 @@ mac_compute(struct sshmac *mac, u_int32_t seqno, const u_char *data, int datalen
 			dlen = mac->mac_len;
 		memcpy(digest, u.m, dlen);
 	}
+	return 0;
+}
+
+int
+mac_check(struct sshmac *mac, u_int32_t seqno,
+    const u_char *data, size_t dlen,
+    const u_char *theirmac, size_t mlen)
+{
+	u_char ourmac[SSH_DIGEST_MAX_LENGTH];
+	int r;
+
+	if (mac->mac_len > mlen)
+		return SSH_ERR_INVALID_ARGUMENT;
+	if ((r = mac_compute(mac, seqno, data, dlen,
+	    ourmac, sizeof(ourmac))) != 0)
+		return r;
+	if (timingsafe_bcmp(ourmac, theirmac, mac->mac_len) != 0)
+		return SSH_ERR_MAC_INVALID;
 	return 0;
 }
 
