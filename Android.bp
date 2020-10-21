@@ -251,7 +251,7 @@ prebuilt_etc {
     name: "sshd_config",
     vendor: true,
     src: "sshd_config.android",
-    relative_install_path: "ssh",
+    sub_dir: "ssh",
 }
 
 sh_binary {
