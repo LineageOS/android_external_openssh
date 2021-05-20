@@ -1,4 +1,4 @@
-/* $OpenBSD: readconf.h,v 1.133 2020/04/03 02:27:12 dtucker Exp $ */
+/* $OpenBSD: readconf.h,v 1.140 2021/02/15 20:43:15 markus Exp $ */
 
 /*
  * Author: Tatu Ylonen <ylo@cs.hut.fi>
@@ -55,7 +55,8 @@ typedef struct {
 	int	ip_qos_bulk;		/* IP ToS/DSCP/class for bulk traffic */
 	SyslogFacility log_facility;	/* Facility for system logging. */
 	LogLevel log_level;	/* Level for logging. */
-
+	u_int	num_log_verbose;	/* Verbose log overrides */
+	char   **log_verbose;
 	int     port;		/* Port to connect. */
 	int     address_family;
 	int     connection_attempts;	/* Max attempts (seconds) before
@@ -97,6 +98,7 @@ typedef struct {
 	struct sshkey *certificates[SSH_MAX_CERTIFICATE_FILES];
 
 	int	add_keys_to_agent;
+	int	add_keys_to_agent_lifespan;
 	char   *identity_agent;		/* Optional path to ssh-agent socket */
 
 	/* Local TCP/IP forward requests. */
@@ -107,6 +109,10 @@ typedef struct {
 	int     num_remote_forwards;
 	struct Forward *remote_forwards;
 	int	clear_forwardings;
+
+	/* Restrict remote dynamic forwarding */
+	char  **permitted_remote_opens;
+	u_int	num_permitted_remote_opens;
 
 	/* stdio forwarding (-W) host and port */
 	char   *stdio_forward_host;
@@ -159,13 +165,15 @@ typedef struct {
 
 	int	 update_hostkeys; /* one of SSH_UPDATE_HOSTKEYS_* */
 
-	char   *hostbased_key_types;
-	char   *pubkey_key_types;
+	char   *hostbased_accepted_algos;
+	char   *pubkey_accepted_algos;
 
 	char   *jump_user;
 	char   *jump_host;
 	int	jump_port;
 	char   *jump_extra;
+
+	char   *known_hosts_command;
 
 	char	*ignored_unknown; /* Pattern list of unknown tokens to ignore */
 }       Options;
@@ -203,8 +211,9 @@ const char *kex_default_pk_alg(void);
 char	*ssh_connection_hash(const char *thishost, const char *host,
     const char *portstr, const char *user);
 void     initialize_options(Options *);
-void     fill_default_options(Options *);
+int      fill_default_options(Options *);
 void	 fill_default_options_for_canonicalization(Options *);
+void	 free_options(Options *o);
 int	 process_config_line(Options *, struct passwd *, const char *,
     const char *, char *, const char *, int, int *, int);
 int	 read_config_file(const char *, struct passwd *, const char *,

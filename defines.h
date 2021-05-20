@@ -829,10 +829,6 @@ struct winsize {
 # define getgroups(a,b) ((a)==0 && (b)==NULL ? NGROUPS_MAX : getgroups((a),(b)))
 #endif
 
-#if defined(HAVE_MMAP) && defined(BROKEN_MMAP)
-# undef HAVE_MMAP
-#endif
-
 #ifndef IOV_MAX
 # if defined(_XOPEN_IOV_MAX)
 #  define	IOV_MAX		_XOPEN_IOV_MAX
@@ -898,4 +894,11 @@ struct winsize {
 # define USE_SYSTEM_GLOB
 #endif
 
+/*
+ * sntrup761 uses variable length arrays, only enable if the compiler
+ * supports them.
+ */
+#ifdef VARIABLE_LENGTH_ARRAYS
+# define USE_SNTRUP761X25519 1
+#endif
 #endif /* _DEFINES_H */

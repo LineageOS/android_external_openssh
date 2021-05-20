@@ -1,4 +1,4 @@
-/* $OpenBSD: channels.h,v 1.133 2020/01/25 22:49:38 djm Exp $ */
+/* $OpenBSD: channels.h,v 1.137 2021/04/03 06:18:40 djm Exp $ */
 
 /*
  * Author: Tatu Ylonen <ylo@cs.hut.fi>
@@ -52,11 +52,11 @@
 #define SSH_CHANNEL_DYNAMIC		13
 #define SSH_CHANNEL_ZOMBIE		14	/* Almost dead. */
 #define SSH_CHANNEL_MUX_LISTENER	15	/* Listener for mux conn. */
-#define SSH_CHANNEL_MUX_CLIENT		16	/* Conn. to mux slave */
+#define SSH_CHANNEL_MUX_CLIENT		16	/* Conn. to mux client */
 #define SSH_CHANNEL_ABANDONED		17	/* Abandoned session, eg mux */
 #define SSH_CHANNEL_UNIX_LISTENER	18	/* Listening on a domain socket. */
 #define SSH_CHANNEL_RUNIX_LISTENER	19	/* Listening to a R-style domain socket. */
-#define SSH_CHANNEL_MUX_PROXY		20	/* proxy channel for mux-slave */
+#define SSH_CHANNEL_MUX_PROXY		20	/* proxy channel for mux-client */
 #define SSH_CHANNEL_RDYNAMIC_OPEN	21	/* reverse SOCKS, parsing request */
 #define SSH_CHANNEL_RDYNAMIC_FINISH	22	/* reverse SOCKS, finishing connect */
 #define SSH_CHANNEL_MAX_TYPE		23
@@ -177,7 +177,7 @@ struct Channel {
 	channel_filter_cleanup_fn *filter_cleanup;
 
 	/* keep boundaries */
-	int     		datagram;
+	int			datagram;
 
 	/* non-blocking connect */
 	/* XXX make this a pointer so the structure can be opaque */
@@ -187,7 +187,7 @@ struct Channel {
 	mux_callback_fn		*mux_rcb;
 	void			*mux_ctx;
 	int			mux_pause;
-	int     		mux_downstream_id;
+	int			mux_downstream_id;
 };
 
 #define CHAN_EXTENDED_IGNORE		0
@@ -222,6 +222,9 @@ struct Channel {
 
 /* Read buffer size */
 #define CHAN_RBUF	(16*1024)
+
+/* Maximum channel input buffer size */
+#define CHAN_INPUT_MAX	(16*1024*1024)
 
 /* Hard limit on number of channels */
 #define CHANNELS_MAX_CHANNELS	(16*1024)
@@ -286,7 +289,7 @@ int	 channel_input_status_confirm(int, u_int32_t, struct ssh *);
 /* file descriptor handling (read/write) */
 
 void	 channel_prepare_select(struct ssh *, fd_set **, fd_set **, int *,
-	     u_int*, time_t*);
+	    u_int*, time_t*);
 void     channel_after_select(struct ssh *, fd_set *, fd_set *);
 void     channel_output_poll(struct ssh *);
 
