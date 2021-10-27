@@ -1,12 +1,34 @@
-#	$OpenBSD: hostkey-rotate.sh,v 1.8 2019/11/26 23:43:10 djm Exp $
+#	$OpenBSD: hostkey-rotate.sh,v 1.9 2020/10/07 06:38:16 djm Exp $
 #	Placed in the Public Domain.
 
 tid="hostkey rotate"
 
-rm -f $OBJ/hkr.* $OBJ/ssh_proxy.orig
+#
+# GNU (f)grep <=2.18, as shipped by FreeBSD<=12 and NetBSD<=9 will occasionally
+# fail to find ssh host keys in the hostkey-rotate test.  If we have those
+# versions, use awk instead.
+# See # https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=258616
+#
+case `grep --version 2>&1 | awk '/GNU grep/{print $4}'` in
+2.19)			fgrep=good ;;
+1.*|2.?|2.?.?|2.1?)	fgrep=bad ;;	# stock GNU grep
+2.5.1*)			fgrep=bad ;;	# FreeBSD and NetBSD
+*)			fgrep=good ;;
+esac
+if test "x$fgrep" = "xbad"; then
+	fgrep()
+{
+	awk 'BEGIN{e=1} {if (index($0,"'$1'")>0){e=0;print}} END{exit e}' $2
+}
+fi
+
+rm -f $OBJ/hkr.* $OBJ/ssh_proxy.orig $OBJ/ssh_proxy.orig
 
 grep -vi 'hostkey' $OBJ/sshd_proxy > $OBJ/sshd_proxy.orig
+mv $OBJ/ssh_proxy $OBJ/ssh_proxy.orig
+grep -vi 'globalknownhostsfile' $OBJ/ssh_proxy.orig > $OBJ/ssh_proxy
 echo "UpdateHostkeys=yes" >> $OBJ/ssh_proxy
+echo "GlobalKnownHostsFile=none" >> $OBJ/ssh_proxy
 rm $OBJ/known_hosts
 
 # The "primary" key type is ed25519 since it's supported even when built
