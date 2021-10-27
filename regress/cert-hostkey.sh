@@ -1,4 +1,4 @@
-#	$OpenBSD: cert-hostkey.sh,v 1.23 2020/01/03 03:02:26 djm Exp $
+#	$OpenBSD: cert-hostkey.sh,v 1.25 2021/06/08 22:30:27 djm Exp $
 #	Placed in the Public Domain.
 
 tid="certified host keys"
@@ -29,12 +29,12 @@ for i in `$SSH -Q key | maybe_filter_sk`; do
 done
 (
 	echo "HostKeyAlgorithms ${types}"
-	echo "PubkeyAcceptedKeyTypes *"
+	echo "PubkeyAcceptedAlgorithms *"
 ) >> $OBJ/ssh_proxy
 cp $OBJ/sshd_proxy $OBJ/sshd_proxy_bak
 (
 	echo "HostKeyAlgorithms *"
-	echo "PubkeyAcceptedKeyTypes *"
+	echo "PubkeyAcceptedAlgorithms *"
 ) >> $OBJ/sshd_proxy_bak
 
 HOSTS='localhost-with-alias,127.0.0.1,::1'
@@ -283,10 +283,16 @@ for ktype in $PLAIN_TYPES ; do
 	) > $OBJ/sshd_proxy
 
 	${SSH} -oUserKnownHostsFile=$OBJ/known_hosts-cert \
-	    -oGlobalKnownHostsFile=$OBJ/known_hosts-cert \
-		-F $OBJ/ssh_proxy somehost true
+	    -oGlobalKnownHostsFile=none -F $OBJ/ssh_proxy somehost true
 	if [ $? -ne 0 ]; then
 		fail "ssh cert connect failed"
+	fi
+	# Also check that it works when the known_hosts file is not in the
+	# first array position.
+	${SSH} -oUserKnownHostsFile="/dev/null $OBJ/known_hosts-cert" \
+	    -oGlobalKnownHostsFile=none -F $OBJ/ssh_proxy somehost true
+	if [ $? -ne 0 ]; then
+		fail "ssh cert connect failed known_hosts 2nd"
 	fi
 done
 
