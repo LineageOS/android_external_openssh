@@ -52,6 +52,7 @@ license {
 cc_defaults {
     name: "ssh_defaults",
     product_specific: true,
+    recovery_available: true,
     cflags: [
         "-Wno-incompatible-pointer-types",
         "-Wno-pointer-sign",
@@ -287,6 +288,7 @@ cc_binary {
 prebuilt_etc {
     name: "sshd_config",
     product_specific: true,
+    recovery_available: true,
     src: "sshd_config.android",
     relative_install_path: "ssh",
 }
