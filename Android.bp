@@ -72,6 +72,7 @@ cc_defaults {
 cc_library {
     name: "libssh",
     defaults: ["ssh_defaults"],
+    recovery_available: true,
     cflags: ["-DENABLE_SK"],
     srcs: [
         "addrmatch.c",
