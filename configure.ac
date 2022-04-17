@@ -656,7 +656,7 @@ case "$host" in
 	AC_DEFINE([BROKEN_STRNDUP], 1, [strndup broken, see APAR IY61211])
 	AC_DEFINE([BROKEN_STRNLEN], 1, [strnlen broken, see APAR IY62551])
 	;;
-*-*-android*)
+*-*-IGNOREandroid*)
 	AC_DEFINE([DISABLE_UTMP], [1], [Define if you don't want to use utmp])
 	AC_DEFINE([DISABLE_WTMP], [1], [Define if you don't want to use wtmp])
 	;;
@@ -846,6 +846,7 @@ main() { if (NSVersionOfRunTimeLibrary("System") >= (60 << 16))
 	dnl Target SUSv3/POSIX.1-2001 plus BSD specifics.
 	dnl _DEFAULT_SOURCE is the new name for _BSD_SOURCE
 	CPPFLAGS="$CPPFLAGS -D_XOPEN_SOURCE=600 -D_BSD_SOURCE -D_DEFAULT_SOURCE"
+	false &&
 	AC_DEFINE([BROKEN_CLOSEFROM], [1], [broken in chroots on older kernels])
 	AC_DEFINE([PAM_TTY_KLUDGE], [1],
 		[Work around problematic Linux PAM modules handling of PAM_TTY])
@@ -856,6 +857,7 @@ main() { if (NSVersionOfRunTimeLibrary("System") >= (60 << 16))
 		[Define to whatever link() returns for "not supported"
 		if it doesn't return EOPNOTSUPP.])
 	AC_DEFINE([_PATH_BTMP], ["/var/log/btmp"], [log for bad login attempts])
+	false &&
 	AC_DEFINE([USE_BTMP])
 	AC_DEFINE([LINUX_OOM_ADJUST], [1], [Adjust Linux out-of-memory killer])
 	inet6_default_4in6=yes
@@ -1588,8 +1590,7 @@ AC_RUN_IFELSE(
 			allocate extra space for d_name])
 	],
 	[
-		AC_MSG_WARN([cross compiling: assuming BROKEN_ONE_BYTE_DIRENT_D_NAME])
-		AC_DEFINE([BROKEN_ONE_BYTE_DIRENT_D_NAME])
+		AC_MSG_WARN([cross compiling: assuming not BROKEN_ONE_BYTE_DIRENT_D_NAME])
 	]
 )
 
@@ -3583,8 +3584,8 @@ AC_RUN_IFELSE(
 	 select_works_with_rlimit=yes],
 	[AC_MSG_RESULT([no])
 	 select_works_with_rlimit=no],
-	[AC_MSG_WARN([cross compiling: assuming no])
-	 select_works_with_rlimit=no]
+	[AC_MSG_WARN([cross compiling: assuming yes])
+	 select_works_with_rlimit=yes]
 )
 
 AC_CHECK_MEMBERS([struct pollfd.fd], [], [], [[
@@ -4948,8 +4949,12 @@ AC_ARG_WITH([maildir],
 ) # maildir
 
 if test ! -z "$cross_compiling" && test "x$cross_compiling" = "xyes"; then
-	AC_MSG_WARN([cross compiling: Disabling /dev/ptmx test])
+	AC_MSG_WARN([cross compiling: Disabling /dev/ptmx test (assuming yes)])
 	disable_ptmx_check=yes
+
+	AC_DEFINE_UNQUOTED([HAVE_DEV_PTMX], [1],
+		[Define if you have /dev/ptmx])
+	have_dev_ptmx=1
 fi
 if test -z "$no_dev_ptmx" ; then
 	if test "x$disable_ptmx_check" != "xyes" ; then
