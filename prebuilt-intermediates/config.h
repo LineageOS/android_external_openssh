@@ -203,7 +203,9 @@
 #define HAVE_ARC4RANDOM_BUF 1
 
 /* Define to 1 if you have the `arc4random_stir' function. */
-/* #undef HAVE_ARC4RANDOM_STIR */
+#ifdef _ILP32
+# define HAVE_ARC4RANDOM_STIR 1
+#endif
 
 /* Define to 1 if you have the `arc4random_uniform' function. */
 #define HAVE_ARC4RANDOM_UNIFORM 1
@@ -233,7 +235,9 @@
 #define HAVE_BASENAME 1
 
 /* Define to 1 if you have the `bcopy' function. */
-/* #undef HAVE_BCOPY */
+#ifdef _ILP32
+# define HAVE_BCOPY 1
+#endif
 
 /* Define to 1 if you have the `bcrypt_pbkdf' function. */
 /* #undef HAVE_BCRYPT_PBKDF */
@@ -272,7 +276,9 @@
 /* #undef HAVE_BSTRING_H */
 
 /* Define to 1 if you have the `bzero' function. */
-/* #undef HAVE_BZERO */
+#ifdef _ILP32
+# define HAVE_BZERO 1
+#endif
 
 /* calloc(0, x) returns NULL */
 #define HAVE_CALLOC 0
@@ -1907,25 +1913,29 @@
 /* #undef SANDBOX_SYSTRACE */
 
 /* Specify the system call convention in use */
-#define SECCOMP_AUDIT_ARCH AUDIT_ARCH_AARCH64
+#ifdef _ILP32
+# define SECCOMP_AUDIT_ARCH AUDIT_ARCH_ARM
+#else
+# define SECCOMP_AUDIT_ARCH AUDIT_ARCH_AARCH64
+#endif
 
 /* Define if your platform breaks doing a seteuid before a setuid */
 /* #undef SETEUID_BREAKS_SETUID */
 
 /* The size of `int', as computed by sizeof. */
-#define SIZEOF_INT 4
+#define SIZEOF_INT __SIZEOF_INT__
 
 /* The size of `long int', as computed by sizeof. */
-#define SIZEOF_LONG_INT 8
+#define SIZEOF_LONG_INT __SIZEOF_LONG__
 
 /* The size of `long long int', as computed by sizeof. */
-#define SIZEOF_LONG_LONG_INT 8
+#define SIZEOF_LONG_LONG_INT __SIZEOF_LONG_LONG__
 
 /* The size of `short int', as computed by sizeof. */
-#define SIZEOF_SHORT_INT 2
+#define SIZEOF_SHORT_INT __SIZEOF_SHORT__
 
 /* The size of `time_t', as computed by sizeof. */
-#define SIZEOF_TIME_T 8
+#define SIZEOF_TIME_T __SIZEOF_LONG__
 
 /* Define as const if snprintf() can declare const char *fmt */
 #define SNPRINTF_CONST const
@@ -2076,7 +2086,9 @@
 #endif
 
 /* Number of bits in a file offset, on hosts where this is settable. */
-/* #undef _FILE_OFFSET_BITS */
+#ifdef _ILP32
+# define _FILE_OFFSET_BITS 64
+#endif
 
 /* Define for large files, on AIX-style hosts. */
 /* #undef _LARGE_FILES */
