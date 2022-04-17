@@ -1,4 +1,4 @@
-/* config.h.  Generated from config.h.in by configure.  */
+/* config.h.  Generated from config.h.in by configure and then hand modified for android */
 /* config.h.in.  Generated from configure.ac by autoheader.  */
 
 /* Define if building universal (internal helper macro) */
@@ -220,7 +220,7 @@
 #define HAVE_ATTRIBUTE__NONNULL__ 1
 
 /* OpenBSD's gcc has sentinel */
-/* #undef HAVE_ATTRIBUTE__SENTINEL__ */
+#define HAVE_ATTRIBUTE__SENTINEL__ 1
 
 /* Define to 1 if you have the `aug_get_machine' function. */
 /* #undef HAVE_AUG_GET_MACHINE */
@@ -276,9 +276,8 @@
 /* #undef HAVE_BSTRING_H */
 
 /* Define to 1 if you have the `bzero' function. */
-#ifdef _ILP32
-# define HAVE_BZERO 1
-#endif
+/* For Android, bzero is a builtin, which isn't detected by configure correctly */
+#define HAVE_BZERO 1
 
 /* calloc(0, x) returns NULL */
 #define HAVE_CALLOC 0
@@ -2122,3 +2121,20 @@
 
 /* type to use in place of socklen_t if not defined */
 /* #undef socklen_t */
+
+#ifndef SSHDIR
+#define SSHDIR "/data/ssh"
+#endif
+
+#define _PATH_PRIVSEP_CHROOT_DIR SSHDIR "/empty"
+
+#define _PATH_SSH_PROGRAM "/system/bin/ssh"
+
+/* Android doesn't actually have these, but we don't need the substitutes either (and they fail to build) */
+#define HAVE_RSA_METH_DUP 1
+#define HAVE_RSA_METH_FREE 1
+#define HAVE_RSA_METH_GET_FINISH 1
+#define HAVE_RSA_METH_SET1_NAME 1
+#define HAVE_RSA_METH_SET_FINISH 1
+#define HAVE_RSA_METH_SET_PRIV_DEC 1
+#define HAVE_RSA_METH_SET_PRIV_ENC 1
