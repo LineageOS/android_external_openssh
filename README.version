@@ -1,4 +1,4 @@
-URL: https://cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-8.3p1.tar.gz
-Version: 8.3p1
+URL: https://cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-9.0p1.tar.gz
+Version: 9.0p1
 BugComponent: 180238
 Owners: adelva, cloud-android-devs
