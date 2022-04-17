@@ -34,6 +34,24 @@
       "parentUuid": "14af2cec_4b1664a3",
       "revId": "88d2e32dd6190eb77faddd78c1e0fde212cbc80f",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "46170edd_b8ce69ca",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 15173
+      },
+      "writtenOn": "2022-04-17T03:33:26Z",
+      "side": 1,
+      "message": "configure has no way to be run inside an Android environment, against bionic and all the current android build and runtime deps, it\u0027s foolish to pretend otherwise.",
+      "parentUuid": "d4ed6d75_decb728e",
+      "revId": "88d2e32dd6190eb77faddd78c1e0fde212cbc80f",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
