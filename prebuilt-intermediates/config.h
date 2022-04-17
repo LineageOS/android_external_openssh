@@ -1903,7 +1903,8 @@
 /* #undef SANDBOX_SKIP_RLIMIT_FSIZE */
 
 /* define if setrlimit RLIMIT_NOFILE breaks things */
-/* #undef SANDBOX_SKIP_RLIMIT_NOFILE */
+/* On Android, this breaks using ppoll */
+#define SANDBOX_SKIP_RLIMIT_NOFILE 1
 
 /* Sandbox using Solaris/Illumos privileges */
 /* #undef SANDBOX_SOLARIS */
