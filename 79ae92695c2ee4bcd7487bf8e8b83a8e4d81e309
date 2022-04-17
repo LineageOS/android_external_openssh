@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "80542c41_b1c45037",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 15173
+      },
+      "writtenOn": "2022-04-17T03:12:46Z",
+      "side": 1,
+      "message": "https://review.lineageos.org/c/LineageOS/android_external_openssh/+/317984 should be picked instead",
+      "revId": "79ae92695c2ee4bcd7487bf8e8b83a8e4d81e309",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
