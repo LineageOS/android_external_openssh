@@ -16,6 +16,24 @@
       "message": "configure.ac should have no changes.",
       "revId": "88d2e32dd6190eb77faddd78c1e0fde212cbc80f",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "d4ed6d75_decb728e",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 30863
+      },
+      "writtenOn": "2022-04-17T03:21:36Z",
+      "side": 1,
+      "message": "Why? Even though Android\u0027s build system doesn\u0027t run it directly, it\u0027s useful to document the changes needed to generate the config.h here. Is there a better approach?",
+      "parentUuid": "14af2cec_4b1664a3",
+      "revId": "88d2e32dd6190eb77faddd78c1e0fde212cbc80f",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
