@@ -12,6 +12,8 @@ ECDSA_KEY=/data/ssh/ssh_host_ecdsa_key
 ECDSA_PUB_KEY=/data/ssh/ssh_host_ecdsa_key.pub
 AUTHORIZED_KEYS=/data/ssh/authorized_keys
 DEFAULT_AUTHORIZED_KEYS=/vendor/etc/security/authorized_keys.default
+SSHD_CONFIG=/data/ssh/sshd_config
+DEFAULT_SSHD_CONFIG=/vendor/etc/ssh/sshd_config
 
 if [ ! -f $RSA_KEY ]; then
     /system/bin/ssh-keygen -t rsa -f $RSA_KEY -N ""
@@ -35,11 +37,15 @@ if [[ ! -f $AUTHORIZED_KEYS && -f $DEFAULT_AUTHORIZED_KEYS ]]; then
     cat $DEFAULT_AUTHORIZED_KEYS > $AUTHORIZED_KEYS
 fi
 
+if [[ ! -f $SSHD_CONFIG && -f $DEFAULT_SSHD_CONFIG ]]; then
+    SSHD_CONFIG="$DEFAULT_SSHD_CONFIG"
+fi
+
 
 if [ "1" == "$DEBUG" ] ; then
     # run sshd in debug mode and capture output to logcat
-    /system/bin/logwrapper /system/bin/sshd -f /vendor/etc/ssh/sshd_config -D -d
+    /system/bin/logwrapper /system/bin/sshd -f "$SSHD_CONFIG" -D -d
 else
     # don't daemonize - otherwise we can't stop the sshd service
-    /system/bin/sshd -f /vendor/etc/ssh/sshd_config -D
+    /system/bin/sshd -f "$SSHD_CONFIG" -D
 fi
