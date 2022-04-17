@@ -16,6 +16,24 @@
       "message": "Is this from or submitted upstream?",
       "revId": "8850011eb7cebf34263df29b78ab0287d03aff18",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "c7a470e5_b9b2711b",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 30863
+      },
+      "writtenOn": "2022-04-17T03:21:50Z",
+      "side": 1,
+      "message": "No. I made a report to upstream, but didn\u0027t provide the code patch yet.",
+      "parentUuid": "6aa35490_7056bd6f",
+      "revId": "8850011eb7cebf34263df29b78ab0287d03aff18",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
