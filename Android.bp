@@ -254,7 +254,6 @@ cc_binary {
         "gss-serv.c",
         "kexgexs.c",
         "loginrec.c",
-        "md5crypt.c",
         "monitor.c",
         "monitor_wrap.c",
         "platform.c",

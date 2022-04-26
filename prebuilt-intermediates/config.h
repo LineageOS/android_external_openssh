@@ -779,6 +779,9 @@
 /* Define to 1 if you have the <poll.h> header file. */
 #define HAVE_POLL_H 1
 
+/* Define to 1 if you have the pollfd struct. */
+#define HAVE_STRUCT_POLLFD_FD 1
+
 /* Define to 1 if you have the `prctl' function. */
 #define HAVE_PRCTL 1
 
