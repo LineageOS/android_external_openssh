@@ -4,12 +4,12 @@ umask 077
 
 # DEBUG=1
 
-ECDSA_KEY=/data/ssh/ssh_host_ecdsa_key
-ECDSA_PUB_KEY=/data/ssh/ssh_host_ecdsa_key.pub
-RSA_KEY=/data/ssh/ssh_host_rsa_key
-RSA_PUB_KEY=/data/ssh/ssh_host_rsa_key.pub
-ED25519_KEY=/data/ssh/ssh_host_ed25519_key
-ED25519_PUB_KEY=/data/ssh/ssh_host_ed25519_key.pub
+ECDSA_KEY=/data/ssh/id_ecdsa
+ECDSA_PUB_KEY=/data/ssh/id_ecdsa.pub
+RSA_KEY=/data/ssh/id_rsa
+RSA_PUB_KEY=/data/ssh/id_rsa.pub
+ED25519_KEY=/data/ssh/id_ed25519
+ED25519_PUB_KEY=/data/ssh/id_ed25519.pub
 AUTHORIZED_KEYS=/data/ssh/authorized_keys
 DEFAULT_AUTHORIZED_KEYS=/product/etc/security/authorized_keys.default
 

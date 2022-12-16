@@ -57,16 +57,26 @@
  * The directory in user's home directory in which the files reside. The
  * directory should be world-readable (though not all files are).
  */
-#define _PATH_SSH_USER_DIR		".ssh"
+#ifdef __ANDROID__
+    #define _PATH_SSH_USER_DIR		"ssh"
+#else
+    #define _PATH_SSH_USER_DIR		".ssh"
+#endif
 
 /*
  * Per-user file containing host keys of known hosts.  This file need not be
  * readable by anyone except the user him/herself, though this does not
  * contain anything particularly secret.
  */
-#define _PATH_SSH_USER_HOSTFILE		"~/" _PATH_SSH_USER_DIR "/known_hosts"
-/* backward compat for protocol 2 */
-#define _PATH_SSH_USER_HOSTFILE2	"~/" _PATH_SSH_USER_DIR "/known_hosts2"
+#ifdef __ANDROID__
+    #define _PATH_SSH_USER_HOSTFILE		"/sdcard/" _PATH_SSH_USER_DIR "/known_hosts"
+    /* backward compat for protocol 2 */
+    #define _PATH_SSH_USER_HOSTFILE2	"/sdcard/" _PATH_SSH_USER_DIR "/known_hosts2"
+#else
+    #define _PATH_SSH_USER_HOSTFILE		"~/" _PATH_SSH_USER_DIR "/known_hosts"
+    /* backward compat for protocol 2 */
+    #define _PATH_SSH_USER_HOSTFILE2	"~/" _PATH_SSH_USER_DIR "/known_hosts2"
+#endif
 
 /*
  * Name of the default file containing client-side authentication key. This

@@ -1613,7 +1613,7 @@ parse_keytypes:
 			if (!path_absolute(arg) && *arg != '~') {
 				xasprintf(&arg2, "%s/%s",
 				    (flags & SSHCONF_USERCONF) ?
-				    "~/" _PATH_SSH_USER_DIR : SSHDIR, arg);
+				    _USER_CONFIG_PATH _PATH_SSH_USER_DIR : SSHDIR, arg);
 			} else
 				arg2 = xstrdup(arg);
 			memset(&gl, 0, sizeof(gl));
@@ -1873,9 +1873,12 @@ read_config_file_depth(const char *filename, struct passwd *pw,
 
 		if (fstat(fileno(f), &sb) == -1)
 			fatal("fstat %s: %s", filename, strerror(errno));
+
+#if !defined(ANDROID)
 		if (((sb.st_uid != 0 && sb.st_uid != getuid()) ||
 		    (sb.st_mode & 022) != 0))
 			fatal("Bad owner or permissions on %s", filename);
+#endif
 	}
 
 	debug("Reading configuration data %.200s", filename);
@@ -2113,18 +2116,18 @@ fill_default_options(Options * options)
 	if (options->add_keys_to_agent == -1)
 		options->add_keys_to_agent = 0;
 	if (options->num_identity_files == 0) {
-		add_identity_file(options, "~/", _PATH_SSH_CLIENT_ID_RSA, 0);
-		add_identity_file(options, "~/", _PATH_SSH_CLIENT_ID_DSA, 0);
+		add_identity_file(options, _USER_PATH, _PATH_SSH_CLIENT_ID_RSA, 0);
+		add_identity_file(options, _USER_PATH, _PATH_SSH_CLIENT_ID_DSA, 0);
 #ifdef OPENSSL_HAS_ECC
-		add_identity_file(options, "~/", _PATH_SSH_CLIENT_ID_ECDSA, 0);
-		add_identity_file(options, "~/",
+		add_identity_file(options, _USER_PATH, _PATH_SSH_CLIENT_ID_ECDSA, 0);
+		add_identity_file(options, _USER_PATH,
 		    _PATH_SSH_CLIENT_ID_ECDSA_SK, 0);
 #endif
-		add_identity_file(options, "~/",
+		add_identity_file(options, _USER_PATH,
 		    _PATH_SSH_CLIENT_ID_ED25519, 0);
-		add_identity_file(options, "~/",
+		add_identity_file(options, _USER_PATH,
 		    _PATH_SSH_CLIENT_ID_ED25519_SK, 0);
-		add_identity_file(options, "~/", _PATH_SSH_CLIENT_ID_XMSS, 0);
+		add_identity_file(options, _USER_PATH, _PATH_SSH_CLIENT_ID_XMSS, 0);
 	}
 	if (options->escape_char == -1)
 		options->escape_char = '~';

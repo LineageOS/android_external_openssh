@@ -199,6 +199,14 @@ typedef struct {
 #define SSH_STRICT_HOSTKEY_YES	2
 #define SSH_STRICT_HOSTKEY_ASK	3
 
+#ifdef __ANDROID__
+    #define _USER_PATH			"/data/"
+	#define _USER_CONFIG_PATH	"/sdcard"
+#else
+    #define _USER_PATH			"~/"
+	#define _USER_CONFIG_PATH	"~/"
+#endif
+
 const char *kex_default_pk_alg(void);
 char	*ssh_connection_hash(const char *thishost, const char *host,
     const char *portstr, const char *user);
