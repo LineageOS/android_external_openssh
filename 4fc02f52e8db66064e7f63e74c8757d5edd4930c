@@ -16,6 +16,23 @@
       "message": "SSH debug output with this change:\nhttps://pastebin.com/raw/bxqdRZkr",
       "revId": "4fc02f52e8db66064e7f63e74c8757d5edd4930c",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "05269c4d_527d513f",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 17945
+      },
+      "writtenOn": "2022-12-18T19:08:47Z",
+      "side": 1,
+      "message": "I\u0027ve been running this for some time now, I don\u0027t see any major concern or issues. Definitely helpful in my use case of running backups through adb shell + rsync with no user inputs asking to type yes every time I want to backup my storage.\nI could see this being useful to others use the shell a lot.. or using this on SBCs that LineageOS supports like the RPi (Although I do not have access to one atm for testing.).\nI\u0027d like to hear the team\u0027s thoughts on this.",
+      "revId": "4fc02f52e8db66064e7f63e74c8757d5edd4930c",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
