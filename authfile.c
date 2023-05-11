@@ -1,4 +1,4 @@
-/* $OpenBSD: authfile.c,v 1.140 2020/04/17 07:15:11 djm Exp $ */
+/* $OpenBSD: authfile.c,v 1.142 2022/01/01 01:55:30 jsg Exp $ */
 /*
  * Copyright (c) 2000, 2013 Markus Friedl.  All rights reserved.
  *
@@ -263,7 +263,7 @@ int
 sshkey_load_public(const char *filename, struct sshkey **keyp, char **commentp)
 {
 	char *pubfile = NULL;
-	int r;
+	int r, oerrno;
 
 	if (keyp != NULL)
 		*keyp = NULL;
@@ -283,8 +283,14 @@ sshkey_load_public(const char *filename, struct sshkey **keyp, char **commentp)
 	if ((r = sshkey_load_pubkey_from_private(filename, keyp)) == 0)
 		goto out;
 
+	/* Pretend we couldn't find the key */
+	r = SSH_ERR_SYSTEM_ERROR;
+	errno = ENOENT;
+
  out:
+	oerrno = errno;
 	free(pubfile);
+	errno = oerrno;
 	return r;
 }
 
@@ -362,7 +368,7 @@ sshkey_load_private_cert(int type, const char *filename, const char *passphrase,
  * Returns success if the specified "key" is listed in the file "filename",
  * SSH_ERR_KEY_NOT_FOUND: if the key is not listed or another error.
  * If "strict_type" is set then the key type must match exactly,
- * otherwise a comparison that ignores certficiate data is performed.
+ * otherwise a comparison that ignores certificate data is performed.
  * If "check_ca" is set and "key" is a certificate, then its CA key is
  * also checked and sshkey_in_file() will return success if either is found.
  */

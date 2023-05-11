@@ -1,4 +1,4 @@
-/* $OpenBSD: ssh-keyscan.c,v 1.131 2019/12/15 19:47:10 djm Exp $ */
+/* $OpenBSD: ssh-keyscan.c,v 1.145 2022/01/21 00:53:40 deraadt Exp $ */
 /*
  * Copyright 1995, 1996 by David Mazieres <dm@lcs.mit.edu>.
  *
@@ -25,6 +25,9 @@
 
 #include <netdb.h>
 #include <errno.h>
+#ifdef HAVE_POLL_H
+#include <poll.h>
+#endif
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -85,8 +88,7 @@ int maxfd;
 #define MAXCON (maxfd - 10)
 
 extern char *__progname;
-fd_set *read_wait;
-size_t read_wait_nfdset;
+struct pollfd *read_wait;
 int ncon;
 
 /*
@@ -111,7 +113,7 @@ typedef struct Connection {
 	char *c_output_name;	/* Hostname of connection for output */
 	char *c_data;		/* Data read from this fd */
 	struct ssh *c_ssh;	/* SSH-connection */
-	struct timeval c_tv;	/* Time at which connection gets aborted */
+	struct timespec c_ts;	/* Time at which connection gets aborted */
 	TAILQ_ENTRY(Connection) c_link;	/* List of connections in timeout order. */
 } con;
 
@@ -293,7 +295,7 @@ keygrab_ssh2(con *c)
 # endif
 #endif
 	c->c_ssh->kex->kex[KEX_C25519_SHA256] = kex_gen_client;
-	c->c_ssh->kex->kex[KEX_KEM_SNTRUP4591761X25519_SHA512] = kex_gen_client;
+	c->c_ssh->kex->kex[KEX_KEM_SNTRUP761X25519_SHA512] = kex_gen_client;
 	ssh_set_verify_host_key_callback(c->c_ssh, key_print_wrapper);
 	/*
 	 * do the key-exchange until an error occurs or until
@@ -305,8 +307,8 @@ keygrab_ssh2(con *c)
 static void
 keyprint_one(const char *host, struct sshkey *key)
 {
-	char *hostport;
-	const char *known_host, *hashed;
+	char *hostport = NULL, *hashed = NULL;
+	const char *known_host;
 
 	found_one = 1;
 
@@ -317,13 +319,14 @@ keyprint_one(const char *host, struct sshkey *key)
 
 	hostport = put_host_port(host, ssh_port);
 	lowercase(hostport);
-	if (hash_hosts && (hashed = host_hash(host, NULL, 0)) == NULL)
+	if (hash_hosts && (hashed = host_hash(hostport, NULL, 0)) == NULL)
 		fatal("host_hash failed");
 	known_host = hash_hosts ? hashed : hostport;
 	if (!get_cert)
 		fprintf(stdout, "%s ", known_host);
 	sshkey_write(key, stdout);
 	fputs("\n", stdout);
+	free(hashed);
 	free(hostport);
 }
 
@@ -367,7 +370,7 @@ tcpconnect(char *host)
 			continue;
 		}
 		if (set_nonblock(s) == -1)
-			fatal("%s: set_nonblock(%d)", __func__, s);
+			fatal_f("set_nonblock(%d)", s);
 		if (connect(s, ai->ai_addr, ai->ai_addrlen) == -1 &&
 		    errno != EINPROGRESS)
 			error("connect (`%s'): %s", host, strerror(errno));
@@ -401,7 +404,7 @@ conalloc(char *iname, char *oname, int keytype)
 	if (fdcon[s].c_status)
 		fatal("conalloc: attempt to reuse fdno %d", s);
 
-	debug3("%s: oname %s kt %d", __func__, oname, keytype);
+	debug3_f("oname %s kt %d", oname, keytype);
 	fdcon[s].c_fd = s;
 	fdcon[s].c_status = CS_CON;
 	fdcon[s].c_namebase = namebase;
@@ -412,10 +415,11 @@ conalloc(char *iname, char *oname, int keytype)
 	fdcon[s].c_len = 4;
 	fdcon[s].c_off = 0;
 	fdcon[s].c_keytype = keytype;
-	monotime_tv(&fdcon[s].c_tv);
-	fdcon[s].c_tv.tv_sec += timeout;
+	monotime_ts(&fdcon[s].c_ts);
+	fdcon[s].c_ts.tv_sec += timeout;
 	TAILQ_INSERT_TAIL(&tq, &fdcon[s], c_link);
-	FD_SET(s, read_wait);
+	read_wait[s].fd = s;
+	read_wait[s].events = POLLIN;
 	ncon++;
 	return (s);
 }
@@ -438,7 +442,8 @@ confree(int s)
 	} else
 		close(s);
 	TAILQ_REMOVE(&tq, &fdcon[s], c_link);
-	FD_CLR(s, read_wait);
+	read_wait[s].fd = -1;
+	read_wait[s].events = 0;
 	ncon--;
 }
 
@@ -446,8 +451,8 @@ static void
 contouch(int s)
 {
 	TAILQ_REMOVE(&tq, &fdcon[s], c_link);
-	monotime_tv(&fdcon[s].c_tv);
-	fdcon[s].c_tv.tv_sec += timeout;
+	monotime_ts(&fdcon[s].c_ts);
+	fdcon[s].c_ts.tv_sec += timeout;
 	TAILQ_INSERT_TAIL(&tq, &fdcon[s], c_link);
 }
 
@@ -522,11 +527,10 @@ congreet(int s)
 		fatal("ssh_packet_set_connection failed");
 	ssh_packet_set_timeout(c->c_ssh, timeout, 1);
 	ssh_set_app_data(c->c_ssh, c);	/* back link */
+	c->c_ssh->compat = 0;
 	if (sscanf(buf, "SSH-%d.%d-%[^\n]\n",
 	    &remote_major, &remote_minor, remote_version) == 3)
-		c->c_ssh->compat = compat_datafellows(remote_version);
-	else
-		c->c_ssh->compat = 0;
+		compat_banner(c->c_ssh, remote_version);
 	if (!ssh2_capable(remote_major, remote_minor)) {
 		debug("%s doesn't support ssh2", c->c_name);
 		confree(s);
@@ -576,48 +580,33 @@ conread(int s)
 static void
 conloop(void)
 {
-	struct timeval seltime, now;
-	fd_set *r, *e;
+	struct timespec seltime, now;
 	con *c;
 	int i;
 
-	monotime_tv(&now);
+	monotime_ts(&now);
 	c = TAILQ_FIRST(&tq);
 
-	if (c && (c->c_tv.tv_sec > now.tv_sec ||
-	    (c->c_tv.tv_sec == now.tv_sec && c->c_tv.tv_usec > now.tv_usec))) {
-		seltime = c->c_tv;
-		seltime.tv_sec -= now.tv_sec;
-		seltime.tv_usec -= now.tv_usec;
-		if (seltime.tv_usec < 0) {
-			seltime.tv_usec += 1000000;
-			seltime.tv_sec--;
-		}
-	} else
-		timerclear(&seltime);
+	if (c && timespeccmp(&c->c_ts, &now, >))
+		timespecsub(&c->c_ts, &now, &seltime);
+	else
+		timespecclear(&seltime);
 
-	r = xcalloc(read_wait_nfdset, sizeof(fd_mask));
-	e = xcalloc(read_wait_nfdset, sizeof(fd_mask));
-	memcpy(r, read_wait, read_wait_nfdset * sizeof(fd_mask));
-	memcpy(e, read_wait, read_wait_nfdset * sizeof(fd_mask));
-
-	while (select(maxfd, r, NULL, e, &seltime) == -1 &&
-	    (errno == EAGAIN || errno == EINTR || errno == EWOULDBLOCK))
-		;
+	while (ppoll(read_wait, maxfd, &seltime, NULL) == -1) {
+		if (errno == EAGAIN || errno == EINTR || errno == EWOULDBLOCK)
+			continue;
+		error("poll error");
+	}
 
 	for (i = 0; i < maxfd; i++) {
-		if (FD_ISSET(i, e)) {
-			error("%s: exception!", fdcon[i].c_name);
+		if (read_wait[i].revents & (POLLHUP|POLLERR|POLLNVAL))
 			confree(i);
-		} else if (FD_ISSET(i, r))
+		else if (read_wait[i].revents & (POLLIN|POLLHUP))
 			conread(i);
 	}
-	free(r);
-	free(e);
 
 	c = TAILQ_FIRST(&tq);
-	while (c && (c->c_tv.tv_sec < now.tv_sec ||
-	    (c->c_tv.tv_sec == now.tv_sec && c->c_tv.tv_usec < now.tv_usec))) {
+	while (c && timespeccmp(&c->c_ts, &now, <)) {
 		int s = c->c_fd;
 
 		c = TAILQ_NEXT(c, c_link);
@@ -643,14 +632,15 @@ do_host(char *host)
 }
 
 void
-fatal(const char *fmt,...)
+sshfatal(const char *file, const char *func, int line, int showfunc,
+    LogLevel level, const char *suffix, const char *fmt, ...)
 {
 	va_list args;
 
 	va_start(args, fmt);
-	do_log(SYSLOG_LEVEL_FATAL, fmt, args);
+	sshlogv(file, func, line, showfunc, level, suffix, fmt, args);
 	va_end(args);
-	exit(255);
+	cleanup_exit(255);
 }
 
 static void
@@ -786,16 +776,15 @@ main(int argc, char **argv)
 	if (maxfd > fdlim_get(0))
 		fdlim_set(maxfd);
 	fdcon = xcalloc(maxfd, sizeof(con));
-
-	read_wait_nfdset = howmany(maxfd, NFDBITS);
-	read_wait = xcalloc(read_wait_nfdset, sizeof(fd_mask));
+	read_wait = xcalloc(maxfd, sizeof(struct pollfd));
+	for (j = 0; j < maxfd; j++)
+		read_wait[j].fd = -1;
 
 	for (j = 0; j < fopt_count; j++) {
 		if (argv[j] == NULL)
 			fp = stdin;
 		else if ((fp = fopen(argv[j], "r")) == NULL)
-			fatal("%s: %s: %s", __progname, argv[j],
-			    strerror(errno));
+			fatal("%s: %s: %s", __progname, argv[j], strerror(errno));
 
 		while (getline(&line, &linesize, fp) != -1) {
 			/* Chomp off trailing whitespace and comments */
@@ -817,8 +806,7 @@ main(int argc, char **argv)
 		}
 
 		if (ferror(fp))
-			fatal("%s: %s: %s", __progname, argv[j],
-			    strerror(errno));
+			fatal("%s: %s: %s", __progname, argv[j], strerror(errno));
 
 		fclose(fp);
 	}

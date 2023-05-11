@@ -48,6 +48,11 @@
 #include "blf.h"
 #include "fnmatch.h"
 
+#if defined(HAVE_LOGIN_CAP) && !defined(HAVE_LOGIN_GETPWCLASS)
+# include <login_cap.h>
+# define login_getpwclass(pw) login_getclass(pw->pw_class)
+#endif
+
 #ifndef HAVE_BASENAME
 char *basename(const char *path);
 #endif
@@ -58,6 +63,10 @@ int bindresvport_sa(int sd, struct sockaddr *sa);
 
 #ifndef HAVE_CLOSEFROM
 void closefrom(int);
+#endif
+
+#if defined(HAVE_DECL_FTRUNCATE) && HAVE_DECL_FTRUNCATE == 0
+int ftruncate(int filedes, off_t length);
 #endif
 
 #ifndef HAVE_GETLINE
@@ -71,6 +80,10 @@ int getpagesize(void);
 
 #ifndef HAVE_GETCWD
 char *getcwd(char *pt, size_t size);
+#endif
+
+#ifndef HAVE_KILLPG
+int killpg(pid_t, int);
 #endif
 
 #if defined(HAVE_DECL_MEMMEM) && HAVE_DECL_MEMMEM == 0
@@ -122,7 +135,7 @@ void strmode(int mode, char *p);
 char *strptime(const char *buf, const char *fmt, struct tm *tm);
 #endif
 
-#if !defined(HAVE_MKDTEMP) || defined(HAVE_STRICT_MKSTEMP)
+#if !defined(HAVE_MKDTEMP)
 int mkstemps(char *path, int slen);
 int mkstemp(char *path);
 char *mkdtemp(char *path);
@@ -190,9 +203,9 @@ int writev(int, struct iovec *, int);
 #endif
 
 /* Home grown routines */
+#include "bsd-signal.h"
 #include "bsd-misc.h"
 #include "bsd-setres_id.h"
-#include "bsd-signal.h"
 #include "bsd-statvfs.h"
 #include "bsd-waitpid.h"
 #include "bsd-poll.h"
@@ -310,8 +323,8 @@ int timingsafe_bcmp(const void *, const void *, size_t);
 #endif
 
 #ifndef HAVE_BCRYPT_PBKDF
-int	bcrypt_pbkdf(const char *, size_t, const u_int8_t *, size_t,
-    u_int8_t *, size_t, unsigned int);
+int	bcrypt_pbkdf(const char *, size_t, const uint8_t *, size_t,
+    uint8_t *, size_t, unsigned int);
 #endif
 
 #ifndef HAVE_EXPLICIT_BZERO
