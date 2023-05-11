@@ -1,4 +1,4 @@
-/* $OpenBSD: ssh-sk.c,v 1.30 2020/04/28 04:02:29 djm Exp $ */
+/* $OpenBSD: ssh-sk.c,v 1.38 2022/01/14 03:35:10 djm Exp $ */
 /*
  * Copyright (c) 2019 Google LLC
  *
@@ -29,10 +29,10 @@
 #include <string.h>
 #include <stdio.h>
 
-#ifdef WITH_OPENSSL
+#if defined(WITH_OPENSSL) && defined(OPENSSL_HAS_ECC)
 #include <openssl/objects.h>
 #include <openssl/ec.h>
-#endif /* WITH_OPENSSL */
+#endif /* WITH_OPENSSL && OPENSSL_HAS_ECC */
 
 #include "log.h"
 #include "misc.h"
@@ -44,6 +44,15 @@
 #include "ssh-sk.h"
 #include "sk-api.h"
 #include "crypto_api.h"
+
+/*
+ * Almost every use of OpenSSL in this file is for ECDSA-NISTP256.
+ * This is strictly a larger hammer than necessary, but it reduces changes
+ * with upstream.
+ */
+#ifndef OPENSSL_HAS_ECC
+# undef WITH_OPENSSL
+#endif
 
 struct sshsk_provider {
 	char *path;
@@ -105,11 +114,11 @@ sshsk_open(const char *path)
 		return NULL;
 	}
 	if ((ret = calloc(1, sizeof(*ret))) == NULL) {
-		error("%s: calloc failed", __func__);
+		error_f("calloc failed");
 		return NULL;
 	}
 	if ((ret->path = strdup(path)) == NULL) {
-		error("%s: strdup failed", __func__);
+		error_f("strdup failed");
 		goto fail;
 	}
 	/* Skip the rest if we're using the linked in middleware */
@@ -134,8 +143,8 @@ sshsk_open(const char *path)
 		goto fail;
 	}
 	version = ret->sk_api_version();
-	debug("%s: provider %s implements version 0x%08lx", __func__,
-	    ret->path, (u_long)version);
+	debug_f("provider %s implements version 0x%08lx", ret->path,
+	    (u_long)version);
 	if ((version & SSH_SK_VERSION_MAJOR_MASK) != SSH_SK_VERSION_MAJOR) {
 		error("Provider \"%s\" implements unsupported "
 		    "version 0x%08lx (supported: 0x%08lx)",
@@ -174,6 +183,7 @@ sshsk_free_enroll_response(struct sk_enroll_response *r)
 	freezero(r->public_key, r->public_key_len);
 	freezero(r->signature, r->signature_len);
 	freezero(r->attestation_cert, r->attestation_cert_len);
+	freezero(r->authdata, r->authdata_len);
 	freezero(r, sizeof(*r));
 }
 
@@ -199,7 +209,7 @@ sshsk_ecdsa_assemble(struct sk_enroll_response *resp, struct sshkey **keyp)
 
 	*keyp = NULL;
 	if ((key = sshkey_new(KEY_ECDSA_SK)) == NULL) {
-		error("%s: sshkey_new failed", __func__);
+		error_f("sshkey_new failed");
 		r = SSH_ERR_ALLOC_FAIL;
 		goto out;
 	}
@@ -207,17 +217,17 @@ sshsk_ecdsa_assemble(struct sk_enroll_response *resp, struct sshkey **keyp)
 	if ((key->ecdsa = EC_KEY_new_by_curve_name(key->ecdsa_nid)) == NULL ||
 	    (q = EC_POINT_new(EC_KEY_get0_group(key->ecdsa))) == NULL ||
 	    (b = sshbuf_new()) == NULL) {
-		error("%s: allocation failed", __func__);
+		error_f("allocation failed");
 		r = SSH_ERR_ALLOC_FAIL;
 		goto out;
 	}
 	if ((r = sshbuf_put_string(b,
 	    resp->public_key, resp->public_key_len)) != 0) {
-		error("%s: buffer error: %s", __func__, ssh_err(r));
+		error_fr(r, "sshbuf_put_string");
 		goto out;
 	}
 	if ((r = sshbuf_get_ec(b, q, EC_KEY_get0_group(key->ecdsa))) != 0) {
-		error("%s: parse key: %s", __func__, ssh_err(r));
+		error_fr(r, "parse");
 		r = SSH_ERR_INVALID_FORMAT;
 		goto out;
 	}
@@ -228,7 +238,7 @@ sshsk_ecdsa_assemble(struct sk_enroll_response *resp, struct sshkey **keyp)
 	}
 	if (EC_KEY_set_public_key(key->ecdsa, q) != 1) {
 		/* XXX assume it is a allocation error */
-		error("%s: allocation failed", __func__);
+		error_f("allocation failed");
 		r = SSH_ERR_ALLOC_FAIL;
 		goto out;
 	}
@@ -252,17 +262,17 @@ sshsk_ed25519_assemble(struct sk_enroll_response *resp, struct sshkey **keyp)
 
 	*keyp = NULL;
 	if (resp->public_key_len != ED25519_PK_SZ) {
-		error("%s: invalid size: %zu", __func__, resp->public_key_len);
+		error_f("invalid size: %zu", resp->public_key_len);
 		r = SSH_ERR_INVALID_FORMAT;
 		goto out;
 	}
 	if ((key = sshkey_new(KEY_ED25519_SK)) == NULL) {
-		error("%s: sshkey_new failed", __func__);
+		error_f("sshkey_new failed");
 		r = SSH_ERR_ALLOC_FAIL;
 		goto out;
 	}
 	if ((key->ed25519_pk = malloc(ED25519_PK_SZ)) == NULL) {
-		error("%s: malloc failed", __func__);
+		error_f("malloc failed");
 		r = SSH_ERR_ALLOC_FAIL;
 		goto out;
 	}
@@ -287,7 +297,7 @@ sshsk_key_from_response(int alg, const char *application, uint8_t flags,
 
 	/* Check response validity */
 	if (resp->public_key == NULL || resp->key_handle == NULL) {
-		error("%s: sk_enroll response invalid", __func__);
+		error_f("sk_enroll response invalid");
 		r = SSH_ERR_INVALID_FORMAT;
 		goto out;
 	}
@@ -303,25 +313,25 @@ sshsk_key_from_response(int alg, const char *application, uint8_t flags,
 			goto out;
 		break;
 	default:
-		error("%s: unsupported algorithm %d", __func__, alg);
+		error_f("unsupported algorithm %d", alg);
 		r = SSH_ERR_INVALID_ARGUMENT;
 		goto out;
 	}
 	key->sk_flags = flags;
 	if ((key->sk_key_handle = sshbuf_new()) == NULL ||
 	    (key->sk_reserved = sshbuf_new()) == NULL) {
-		error("%s: allocation failed", __func__);
+		error_f("allocation failed");
 		r = SSH_ERR_ALLOC_FAIL;
 		goto out;
 	}
 	if ((key->sk_application = strdup(application)) == NULL) {
-		error("%s: strdup application failed", __func__);
+		error_f("strdup application failed");
 		r = SSH_ERR_ALLOC_FAIL;
 		goto out;
 	}
 	if ((r = sshbuf_put(key->sk_key_handle, resp->key_handle,
 	    resp->key_handle_len)) != 0) {
-		error("%s: buffer error: %s", __func__, ssh_err(r));
+		error_fr(r, "put key handle");
 		goto out;
 	}
 	/* success */
@@ -373,18 +383,18 @@ sshsk_add_option(struct sk_option ***optsp, size_t *noptsp,
 
 	if ((opts = recallocarray(opts, nopts, nopts + 2, /* extra for NULL */
 	    sizeof(*opts))) == NULL) {
-		error("%s: array alloc failed", __func__);
+		error_f("array alloc failed");
 		return SSH_ERR_ALLOC_FAIL;
 	}
 	*optsp = opts;
 	*noptsp = nopts + 1;
 	if ((opts[nopts] = calloc(1, sizeof(**opts))) == NULL) {
-		error("%s: alloc failed", __func__);
+		error_f("alloc failed");
 		return SSH_ERR_ALLOC_FAIL;
 	}
 	if ((opts[nopts]->name = strdup(name)) == NULL ||
 	    (opts[nopts]->value = strdup(value)) == NULL) {
-		error("%s: alloc failed", __func__);
+		error_f("alloc failed");
 		return SSH_ERR_ALLOC_FAIL;
 	}
 	opts[nopts]->required = required;
@@ -419,6 +429,31 @@ make_options(const char *device, const char *user_id,
 	return ret;
 }
 
+
+static int
+fill_attestation_blob(const struct sk_enroll_response *resp,
+    struct sshbuf *attest)
+{
+	int r;
+
+	if (attest == NULL)
+		return 0; /* nothing to do */
+	if ((r = sshbuf_put_cstring(attest, "ssh-sk-attest-v01")) != 0 ||
+	    (r = sshbuf_put_string(attest,
+	    resp->attestation_cert, resp->attestation_cert_len)) != 0 ||
+	    (r = sshbuf_put_string(attest,
+	    resp->signature, resp->signature_len)) != 0 ||
+	    (r = sshbuf_put_string(attest,
+	    resp->authdata, resp->authdata_len)) != 0 ||
+	    (r = sshbuf_put_u32(attest, 0)) != 0 || /* resvd flags */
+	    (r = sshbuf_put_string(attest, NULL, 0)) != 0 /* resvd */) {
+		error_fr(r, "compose");
+		return r;
+	}
+	/* success */
+	return 0;
+}
+
 int
 sshsk_enroll(int type, const char *provider_path, const char *device,
     const char *application, const char *userid, uint8_t flags,
@@ -435,8 +470,8 @@ sshsk_enroll(int type, const char *provider_path, const char *device,
 	int r = SSH_ERR_INTERNAL_ERROR;
 	int alg;
 
-	debug("%s: provider \"%s\", device \"%s\", application \"%s\", "
-	    "userid \"%s\", flags 0x%02x, challenge len %zu%s", __func__,
+	debug_f("provider \"%s\", device \"%s\", application \"%s\", "
+	    "userid \"%s\", flags 0x%02x, challenge len %zu%s",
 	    provider_path, device, application, userid, flags,
 	    challenge_buf == NULL ? 0 : sshbuf_len(challenge_buf),
 	    (pin != NULL && *pin != '\0') ? " with-pin" : "");
@@ -458,22 +493,22 @@ sshsk_enroll(int type, const char *provider_path, const char *device,
 		alg = SSH_SK_ED25519;
 		break;
 	default:
-		error("%s: unsupported key type", __func__);
+		error_f("unsupported key type");
 		r = SSH_ERR_INVALID_ARGUMENT;
 		goto out;
 	}
 	if (provider_path == NULL) {
-		error("%s: missing provider", __func__);
+		error_f("missing provider");
 		r = SSH_ERR_INVALID_ARGUMENT;
 		goto out;
 	}
 	if (application == NULL || *application == '\0') {
-		error("%s: missing application", __func__);
+		error_f("missing application");
 		r = SSH_ERR_INVALID_ARGUMENT;
 		goto out;
 	}
 	if (challenge_buf == NULL) {
-		debug("%s: using random challenge", __func__);
+		debug_f("using random challenge");
 		arc4random_buf(randchall, sizeof(randchall));
 		challenge = randchall;
 		challenge_len = sizeof(randchall);
@@ -484,8 +519,7 @@ sshsk_enroll(int type, const char *provider_path, const char *device,
 	} else {
 		challenge = sshbuf_ptr(challenge_buf);
 		challenge_len = sshbuf_len(challenge_buf);
-		debug3("%s: using explicit challenge len=%zd",
-		    __func__, challenge_len);
+		debug3_f("using explicit challenge len=%zd", challenge_len);
 	}
 	if ((skp = sshsk_open(provider_path)) == NULL) {
 		r = SSH_ERR_INVALID_FORMAT; /* XXX sshsk_open return code? */
@@ -495,30 +529,19 @@ sshsk_enroll(int type, const char *provider_path, const char *device,
 	/* enroll key */
 	if ((r = skp->sk_enroll(alg, challenge, challenge_len, application,
 	    flags, pin, opts, &resp)) != 0) {
-		debug("%s: provider \"%s\" returned failure %d", __func__,
-		    provider_path, r);
+		debug_f("provider \"%s\" failure %d", provider_path, r);
 		r = skerr_to_ssherr(r);
 		goto out;
 	}
 
-	if ((r = sshsk_key_from_response(alg, application, flags,
+	if ((r = sshsk_key_from_response(alg, application, resp->flags,
 	    resp, &key)) != 0)
 		goto out;
 
 	/* Optionally fill in the attestation information */
-	if (attest != NULL) {
-		if ((r = sshbuf_put_cstring(attest,
-		    "ssh-sk-attest-v00")) != 0 ||
-		    (r = sshbuf_put_string(attest,
-		    resp->attestation_cert, resp->attestation_cert_len)) != 0 ||
-		    (r = sshbuf_put_string(attest,
-		    resp->signature, resp->signature_len)) != 0 ||
-		    (r = sshbuf_put_u32(attest, 0)) != 0 || /* resvd flags */
-		    (r = sshbuf_put_string(attest, NULL, 0)) != 0 /* resvd */) {
-			error("%s: buffer error: %s", __func__, ssh_err(r));
-			goto out;
-		}
-	}
+	if ((r = fill_attestation_blob(resp, attest)) != 0)
+		goto out;
+
 	/* success */
 	*keyp = key;
 	key = NULL; /* transferred */
@@ -541,7 +564,7 @@ sshsk_ecdsa_sig(struct sk_sign_response *resp, struct sshbuf *sig)
 
 	/* Check response validity */
 	if (resp->sig_r == NULL || resp->sig_s == NULL) {
-		error("%s: sk_sign response invalid", __func__);
+		error_f("sk_sign response invalid");
 		r = SSH_ERR_INVALID_FORMAT;
 		goto out;
 	}
@@ -554,13 +577,13 @@ sshsk_ecdsa_sig(struct sk_sign_response *resp, struct sshbuf *sig)
 	    resp->sig_r, resp->sig_r_len)) != 0 ||
 	    (r = sshbuf_put_bignum2_bytes(inner_sig,
 	    resp->sig_s, resp->sig_s_len)) != 0) {
-		debug("%s: buffer error: %s", __func__, ssh_err(r));
+		error_fr(r, "compose inner");
 		goto out;
 	}
 	if ((r = sshbuf_put_stringb(sig, inner_sig)) != 0 ||
 	    (r = sshbuf_put_u8(sig, resp->flags)) != 0 ||
 	    (r = sshbuf_put_u32(sig, resp->counter)) != 0) {
-		debug("%s: buffer error: %s", __func__, ssh_err(r));
+		error_fr(r, "compose");
 		goto out;
 	}
 #ifdef DEBUG_SK
@@ -585,7 +608,7 @@ sshsk_ed25519_sig(struct sk_sign_response *resp, struct sshbuf *sig)
 
 	/* Check response validity */
 	if (resp->sig_r == NULL) {
-		error("%s: sk_sign response invalid", __func__);
+		error_f("sk_sign response invalid");
 		r = SSH_ERR_INVALID_FORMAT;
 		goto out;
 	}
@@ -593,7 +616,7 @@ sshsk_ed25519_sig(struct sk_sign_response *resp, struct sshbuf *sig)
 	    resp->sig_r, resp->sig_r_len)) != 0 ||
 	    (r = sshbuf_put_u8(sig, resp->flags)) != 0 ||
 	    (r = sshbuf_put_u32(sig, resp->counter)) != 0) {
-		debug("%s: buffer error: %s", __func__, ssh_err(r));
+		error_fr(r, "compose");
 		goto out;
 	}
 #ifdef DEBUG_SK
@@ -617,7 +640,7 @@ sshsk_sign(const char *provider_path, struct sshkey *key,
 	struct sshbuf *inner_sig = NULL, *sig = NULL;
 	struct sk_option **opts = NULL;
 
-	debug("%s: provider \"%s\", key %s, flags 0x%02x%s", __func__,
+	debug_f("provider \"%s\", key %s, flags 0x%02x%s",
 	    provider_path, sshkey_type(key), key->sk_flags,
 	    (pin != NULL && *pin != '\0') ? " with-pin" : "");
 
@@ -648,11 +671,16 @@ sshsk_sign(const char *provider_path, struct sshkey *key,
 		r = SSH_ERR_INVALID_FORMAT; /* XXX sshsk_open return code? */
 		goto out;
 	}
-
+#ifdef DEBUG_SK
+	fprintf(stderr, "%s: sk_flags = 0x%02x, sk_application = \"%s\"\n",
+	    __func__, key->sk_flags, key->sk_application);
+	fprintf(stderr, "%s: sk_key_handle:\n", __func__);
+	sshbuf_dump(key->sk_key_handle, stderr);
+#endif
 	if ((r = skp->sk_sign(alg, data, datalen, key->sk_application,
 	    sshbuf_ptr(key->sk_key_handle), sshbuf_len(key->sk_key_handle),
 	    key->sk_flags, pin, opts, &resp)) != 0) {
-		debug("%s: sk_sign failed with code %d", __func__, r);
+		debug_f("sk_sign failed with code %d", r);
 		r = skerr_to_ssherr(r);
 		goto out;
 	}
@@ -662,7 +690,7 @@ sshsk_sign(const char *provider_path, struct sshkey *key,
 		goto out;
 	}
 	if ((r = sshbuf_put_cstring(sig, sshkey_ssh_name_plain(key))) != 0) {
-		debug("%s: buffer error (outer): %s", __func__, ssh_err(r));
+		error_fr(r, "compose outer");
 		goto out;
 	}
 	switch (type) {
@@ -680,8 +708,8 @@ sshsk_sign(const char *provider_path, struct sshkey *key,
 #ifdef DEBUG_SK
 	fprintf(stderr, "%s: sig_flags = 0x%02x, sig_counter = %u\n",
 	    __func__, resp->flags, resp->counter);
-	fprintf(stderr, "%s: hashed message:\n", __func__);
-	sshbuf_dump_data(message, sizeof(message), stderr);
+	fprintf(stderr, "%s: data to sign:\n", __func__);
+	sshbuf_dump_data(data, datalen, stderr);
 	fprintf(stderr, "%s: sigbuf:\n", __func__);
 	sshbuf_dump(sig, stderr);
 #endif
@@ -714,6 +742,7 @@ sshsk_free_sk_resident_keys(struct sk_resident_key **rks, size_t nrks)
 		return;
 	for (i = 0; i < nrks; i++) {
 		free(rks[i]->application);
+		freezero(rks[i]->user_id, rks[i]->user_id_len);
 		freezero(rks[i]->key.key_handle, rks[i]->key.key_handle_len);
 		freezero(rks[i]->key.public_key, rks[i]->key.public_key_len);
 		freezero(rks[i]->key.signature, rks[i]->key.signature_len);
@@ -724,25 +753,51 @@ sshsk_free_sk_resident_keys(struct sk_resident_key **rks, size_t nrks)
 	free(rks);
 }
 
+static void
+sshsk_free_resident_key(struct sshsk_resident_key *srk)
+{
+	if (srk == NULL)
+		return;
+	sshkey_free(srk->key);
+	freezero(srk->user_id, srk->user_id_len);
+	free(srk);
+}
+
+
+void
+sshsk_free_resident_keys(struct sshsk_resident_key **srks, size_t nsrks)
+{
+	size_t i;
+
+	if (srks == NULL || nsrks == 0)
+		return;
+
+	for (i = 0; i < nsrks; i++)
+		sshsk_free_resident_key(srks[i]);
+	free(srks);
+}
+
 int
 sshsk_load_resident(const char *provider_path, const char *device,
-    const char *pin, struct sshkey ***keysp, size_t *nkeysp)
+    const char *pin, u_int flags, struct sshsk_resident_key ***srksp,
+    size_t *nsrksp)
 {
 	struct sshsk_provider *skp = NULL;
 	int r = SSH_ERR_INTERNAL_ERROR;
 	struct sk_resident_key **rks = NULL;
-	size_t i, nrks = 0, nkeys = 0;
-	struct sshkey *key = NULL, **keys = NULL, **tmp;
-	uint8_t flags;
+	size_t i, nrks = 0, nsrks = 0;
+	struct sshkey *key = NULL;
+	struct sshsk_resident_key *srk = NULL, **srks = NULL, **tmp;
+	uint8_t sk_flags;
 	struct sk_option **opts = NULL;
 
-	debug("%s: provider \"%s\"%s", __func__, provider_path,
+	debug_f("provider \"%s\"%s", provider_path,
 	    (pin != NULL && *pin != '\0') ? ", have-pin": "");
 
-	if (keysp == NULL || nkeysp == NULL)
+	if (srksp == NULL || nsrksp == NULL)
 		return SSH_ERR_INVALID_ARGUMENT;
-	*keysp = NULL;
-	*nkeysp = 0;
+	*srksp = NULL;
+	*nsrksp = 0;
 
 	if ((r = make_options(device, NULL, &opts)) != 0)
 		goto out;
@@ -756,9 +811,9 @@ sshsk_load_resident(const char *provider_path, const char *device,
 		goto out;
 	}
 	for (i = 0; i < nrks; i++) {
-		debug3("%s: rk %zu: slot = %zu, alg = %d, application = \"%s\"",
-		    __func__, i, rks[i]->slot, rks[i]->alg,
-		    rks[i]->application);
+		debug3_f("rk %zu: slot %zu, alg %d, app \"%s\", uidlen %zu",
+		    i, rks[i]->slot, rks[i]->alg, rks[i]->application,
+		    rks[i]->user_id_len);
 		/* XXX need better filter here */
 		if (strncmp(rks[i]->application, "ssh:", 4) != 0)
 			continue;
@@ -769,38 +824,50 @@ sshsk_load_resident(const char *provider_path, const char *device,
 		default:
 			continue;
 		}
-		/* XXX where to get flags? */
-		flags = SSH_SK_USER_PRESENCE_REQD|SSH_SK_RESIDENT_KEY;
+		sk_flags = SSH_SK_USER_PRESENCE_REQD|SSH_SK_RESIDENT_KEY;
+		if ((rks[i]->flags & SSH_SK_USER_VERIFICATION_REQD))
+			sk_flags |= SSH_SK_USER_VERIFICATION_REQD;
 		if ((r = sshsk_key_from_response(rks[i]->alg,
-		    rks[i]->application, flags, &rks[i]->key, &key)) != 0)
+		    rks[i]->application, sk_flags, &rks[i]->key, &key)) != 0)
 			goto out;
-		if ((tmp = recallocarray(keys, nkeys, nkeys + 1,
-		    sizeof(*tmp))) == NULL) {
-			error("%s: recallocarray failed", __func__);
+		if ((srk = calloc(1, sizeof(*srk))) == NULL) {
+			error_f("calloc failed");
 			r = SSH_ERR_ALLOC_FAIL;
 			goto out;
 		}
-		keys = tmp;
-		keys[nkeys++] = key;
-		key = NULL;
+		srk->key = key;
+		key = NULL; /* transferred */
+		if ((srk->user_id = calloc(1, rks[i]->user_id_len)) == NULL) {
+			error_f("calloc failed");
+			r = SSH_ERR_ALLOC_FAIL;
+			goto out;
+		}
+		memcpy(srk->user_id, rks[i]->user_id, rks[i]->user_id_len);
+		srk->user_id_len = rks[i]->user_id_len;
+		if ((tmp = recallocarray(srks, nsrks, nsrks + 1,
+		    sizeof(*tmp))) == NULL) {
+			error_f("recallocarray failed");
+			r = SSH_ERR_ALLOC_FAIL;
+			goto out;
+		}
+		srks = tmp;
+		srks[nsrks++] = srk;
+		srk = NULL;
 		/* XXX synthesise comment */
 	}
 	/* success */
-	*keysp = keys;
-	*nkeysp = nkeys;
-	keys = NULL;
-	nkeys = 0;
+	*srksp = srks;
+	*nsrksp = nsrks;
+	srks = NULL;
+	nsrks = 0;
 	r = 0;
  out:
 	sshsk_free_options(opts);
 	sshsk_free(skp);
 	sshsk_free_sk_resident_keys(rks, nrks);
 	sshkey_free(key);
-	if (nkeys != 0) {
-		for (i = 0; i < nkeys; i++)
-			sshkey_free(keys[i]);
-		free(keys);
-	}
+	sshsk_free_resident_key(srk);
+	sshsk_free_resident_keys(srks, nsrks);
 	return r;
 }
 
