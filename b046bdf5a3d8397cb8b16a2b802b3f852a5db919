@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "d865de87_ec7d4aad",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 17945
+      },
+      "writtenOn": "2023-05-11T21:50:02Z",
+      "side": 1,
+      "message": "Builds fine: https://vomitb.in/nZPnY1rse5\n\nAOSP removed openssh binary support after https://android.googlesource.com/platform/external/openssh/+log/dbce740b10d190203fbf5ee4c5bd20bb6160d550\n\nThis squash merges all the work done in AOSP + Lineage Maintainers prior to the removal of ssh binaries by them,\n\nFork with full merge history: https://github.com/DroidFreak32/android_external_openssh",
+      "revId": "b046bdf5a3d8397cb8b16a2b802b3f852a5db919",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
