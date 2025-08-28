@@ -1,4 +1,4 @@
-/* $OpenBSD: authfile.c,v 1.142 2022/01/01 01:55:30 jsg Exp $ */
+/* $OpenBSD: authfile.c,v 1.145 2024/09/22 12:56:21 jsg Exp $ */
 /*
  * Copyright (c) 2000, 2013 Markus Friedl.  All rights reserved.
  *
@@ -48,8 +48,6 @@
 #include "sshbuf.h"
 #include "ssherr.h"
 #include "krl.h"
-
-#define MAX_KEY_FILE_SIZE	(1024 * 1024)
 
 /* Save a key blob to a file */
 static int
@@ -211,6 +209,8 @@ sshkey_try_load_public(struct sshkey **kp, const char *filename,
 	int r;
 	struct sshkey *k = NULL;
 
+	if (kp == NULL)
+		return SSH_ERR_INVALID_ARGUMENT;
 	*kp = NULL;
 	if (commentp != NULL)
 		*commentp = NULL;
@@ -501,20 +501,25 @@ sshkey_save_public(const struct sshkey *key, const char *path,
 		return SSH_ERR_SYSTEM_ERROR;
 	if ((f = fdopen(fd, "w")) == NULL) {
 		r = SSH_ERR_SYSTEM_ERROR;
+		close(fd);
 		goto fail;
 	}
 	if ((r = sshkey_write(key, f)) != 0)
 		goto fail;
 	fprintf(f, " %s\n", comment);
-	if (ferror(f) || fclose(f) != 0) {
+	if (ferror(f)) {
 		r = SSH_ERR_SYSTEM_ERROR;
+		goto fail;
+	}
+	if (fclose(f) != 0) {
+		r = SSH_ERR_SYSTEM_ERROR;
+		f = NULL;
  fail:
-		oerrno = errno;
-		if (f != NULL)
+		if (f != NULL) {
+			oerrno = errno;
 			fclose(f);
-		else
-			close(fd);
-		errno = oerrno;
+			errno = oerrno;
+		}
 		return r;
 	}
 	return 0;

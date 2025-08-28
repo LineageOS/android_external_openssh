@@ -1,4 +1,4 @@
-/* $OpenBSD: hostfile.c,v 1.93 2022/01/06 22:02:52 djm Exp $ */
+/* $OpenBSD: hostfile.c,v 1.96 2025/04/30 05:23:15 djm Exp $ */
 /*
  * Author: Tatu Ylonen <ylo@cs.hut.fi>
  * Copyright (c) 1995 Tatu Ylonen <ylo@cs.hut.fi>, Espoo, Finland
@@ -515,14 +515,23 @@ add_host_to_hostfile(const char *filename, const char *host,
     const struct sshkey *key, int store_hash)
 {
 	FILE *f;
-	int success;
+	int success, addnl = 0;
 
 	if (key == NULL)
 		return 1;	/* XXX ? */
 	hostfile_create_user_ssh_dir(filename, 0);
-	f = fopen(filename, "a");
+	f = fopen(filename, "a+");
 	if (!f)
 		return 0;
+	/* Make sure we have a terminating newline. */
+	if (fseek(f, -1L, SEEK_END) == 0 && fgetc(f) != '\n')
+		addnl = 1;
+	if (fseek(f, 0L, SEEK_END) != 0 || (addnl && fputc('\n', f) != '\n')) {
+		error("Failed to add terminating newline to %s: %s",
+		   filename, strerror(errno));
+		fclose(f);
+		return 0;
+	}
 	success = write_host_entry(f, host, NULL, key, store_hash);
 	fclose(f);
 	return success;
@@ -801,6 +810,12 @@ hostkeys_foreach_file(const char *path, FILE *f, hostkeys_foreach_fn *callback,
 		/* Find the end of the host name portion. */
 		for (cp2 = cp; *cp2 && *cp2 != ' ' && *cp2 != '\t'; cp2++)
 			;
+		if (*cp2 == '\0') {
+			verbose_f("truncated line at %s:%lu", path, linenum);
+			if ((options & HKF_WANT_MATCH) == 0)
+				goto bad;
+			continue;
+		}
 		lineinfo.hosts = cp;
 		*cp2++ = '\0';
 
